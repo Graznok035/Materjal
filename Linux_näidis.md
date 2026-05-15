@@ -1,4 +1,4 @@
-# Materjal
+# Linux materjal - lahenduskäigud
 
 # Linuxi eksamipiletite lahenduskäigud
 
