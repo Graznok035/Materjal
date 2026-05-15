@@ -1,5 +1,7 @@
 # Linux materjal - lahenduskäigud
 
+Ära keela parooliga SSH sisselogimist enne, kui oled uues terminaliaknas kontrollinud, et võtmega sisselogimine töötab!
+
 # Linuxi eksamipiletite lahenduskäigud
 
 See dokument sisaldab Linuxi näidispiletite 1 ja 2 loogilisi lahenduskäike.  
