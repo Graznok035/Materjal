@@ -674,6 +674,322 @@ Masin enam automaatselt ei restartinud.
 7. sudo grep -R "reboot\|shutdown\|systemctl reboot" /etc/cron* 2>/dev/null
 8. systemctl list-timers --all
 9. systemctl list-units --type=service --all | grep -i "reboot\|shutdown\|watchdog"
+
+
+# DebianPilet5 restartimise põhjuse lahendamise järjekord
+
+Kui masin restardib ise, siis enne DHCP või muu põhiseadistuse tegemist on mõistlik **kõigepealt lahendada restartimise põhjus**.
+
+Muidu võib juhtuda nii:
+
+```text
+seadistad DHCP → masin teeb restarti → töö katkeb / teenus ei käivitu / failid jäävad pooleli
+```
+
+Õige järjekord Linux pilet 5 puhul:
+
+```text
+1. Mine DebianPilet5 masinasse sisse
+2. Taasta ligipääs / root või peakasutaja õigused
+3. Uuri, miks masin restartib
+4. Peata või keela restarti põhjustav tarkvaraline asi
+5. Kontrolli, et masin püsib üleval
+6. Alles siis tee DHCP serveri seadistus
+7. Testi DHCP klientidega
+8. Dokumenteeri
+```
+
+Ehk **DebianPilet5 puhul esimene suur eesmärk ei ole kohe DHCP**, vaid:
+
+```text
+masin stabiilseks → õigused korda → siis teenused
+```
+
+---
+
+## Kiired käsud restartimise põhjuse otsimiseks
+
+```bash
+last reboot
+uptime
+journalctl -b -1 -e
+sudo crontab -l
+cat /etc/crontab
+sudo grep -R "reboot\|shutdown\|systemctl reboot" /etc/cron* 2>/dev/null
+systemctl list-timers --all
+grep -R "Automatic-Reboot" /etc/apt/apt.conf.d/ 2>/dev/null
+systemctl status watchdog
+```
+
+---
+
+## Mida need käsud kontrollivad?
+
+| Käsk | Mida kontrollib | Mida otsida |
+|---|---|---|
+| `last reboot` | Näitab varasemaid restartimisi | Kas restartid korduvad kindla intervalliga |
+| `uptime` | Näitab, kaua masin on üleval olnud | Kui aeg on väga lühike, restartis masin hiljuti |
+| `journalctl -b -1 -e` | Näitab eelmise käivituse lõpu logisid | Mis toimus vahetult enne restarti |
+| `sudo crontab -l` | Näitab root kasutaja cron töid | Kas seal on `reboot`, `shutdown` või skript |
+| `cat /etc/crontab` | Näitab süsteemset crontabi | Kas süsteem käivitab restarti käsu |
+| `grep -R ... /etc/cron*` | Otsib cron failidest restarti käske | Leia fail, mis restarti käivitab |
+| `systemctl list-timers --all` | Näitab systemd timereid | Kas mõni timer käivitab restarti |
+| `grep -R "Automatic-Reboot"` | Kontrollib automaatuuenduste restarti | Kas unattended-upgrades teeb restarti |
+| `systemctl status watchdog` | Kontrollib watchdog teenust | Kas watchdog võib süsteemi restartida |
+
+---
+
+## Näide: kui leiad cronist restarti käsu
+
+Kui leiad näiteks sellise rea:
+
+```text
+*/5 * * * * root /sbin/reboot
+```
+
+siis see tähendab, et masin teeb restarti iga 5 minuti tagant.
+
+Ava vastav cron fail:
+
+```bash
+sudo nano /etc/cron.d/failinimi
+```
+
+Pane restarti rea ette `#`:
+
+```text
+# */5 * * * * root /sbin/reboot
+```
+
+Seejärel taaskäivita cron:
+
+```bash
+sudo systemctl restart cron
+```
+
+Kontrolli, et cron töötab:
+
+```bash
+systemctl status cron
+```
+
+Oodatav tulemus:
+
+```text
+active (running)
+```
+
+Kontrolli, et masin püsib üleval:
+
+```bash
+uptime
+last reboot
+```
+
+Kui masin enam iga paari minuti järel ei restarti, saad minna edasi DHCP osa juurde.
+
+---
+
+## Näide: kui põhjus on automaatuuenduste restart
+
+Kontrolli:
+
+```bash
+grep -R "Automatic-Reboot" /etc/apt/apt.conf.d/ 2>/dev/null
+```
+
+Kui näed:
+
+```text
+Unattended-Upgrade::Automatic-Reboot "true";
+```
+
+siis automaatuuendused võivad restarti teha.
+
+Ava seadistusfail:
+
+```bash
+sudo nano /etc/apt/apt.conf.d/50unattended-upgrades
+```
+
+Muuda väärtus:
+
+```text
+Unattended-Upgrade::Automatic-Reboot "false";
+```
+
+Kontrolli uuesti:
+
+```bash
+grep -R "Automatic-Reboot" /etc/apt/apt.conf.d/ 2>/dev/null
+```
+
+Oodatav tulemus:
+
+```text
+Unattended-Upgrade::Automatic-Reboot "false";
+```
+
+---
+
+## Näide: kui põhjus on systemd timer
+
+Kontrolli timereid:
+
+```bash
+systemctl list-timers --all
+```
+
+Kui leiad kahtlase timeri, näiteks:
+
+```text
+reboot.timer
+```
+
+kontrolli seda:
+
+```bash
+systemctl cat reboot.timer
+```
+
+Kontrolli seotud teenust:
+
+```bash
+systemctl cat reboot.service
+```
+
+Kui teenus käivitab restarti, keela see:
+
+```bash
+sudo systemctl disable --now reboot.timer
+sudo systemctl disable --now reboot.service
+```
+
+Kontrolli uuesti:
+
+```bash
+systemctl list-timers --all
+```
+
+---
+
+## Näide: kui põhjus on watchdog
+
+Kontrolli watchdog teenust:
+
+```bash
+systemctl status watchdog
+```
+
+Kui watchdog töötab ja põhjustab restarti, keela see:
+
+```bash
+sudo systemctl disable --now watchdog
+```
+
+Kontrolli uuesti:
+
+```bash
+systemctl status watchdog
+```
+
+Oodatav tulemus:
+
+```text
+inactive
+```
+
+või:
+
+```text
+disabled
+```
+
+---
+
+## Lõputest pärast restartimise põhjuse parandamist
+
+Pärast kahtlase cron töö, timeri, teenuse või seadistuse eemaldamist kontrolli:
+
+```bash
+last reboot
+```
+
+Oodatav tulemus:
+
+```text
+uusi restarte ei lisandu
+```
+
+Kontrolli uptime’i:
+
+```bash
+uptime
+```
+
+Oodatav tulemus:
+
+```text
+uptime suureneb ega lähe iga paari minuti järel nulli
+```
+
+Vaata jooksvaid logisid:
+
+```bash
+journalctl -f
+```
+
+Oodatav tulemus:
+
+```text
+restarti põhjustavat teenust või skripti enam ei ilmu
+```
+
+---
+
+## Millal minna DHCP seadistuse juurde?
+
+DHCP seadistuse juurde mine alles siis, kui:
+
+| Kontroll | Oodatav tulemus |
+|---|---|
+| `uptime` | masin on püsinud üleval |
+| `last reboot` | uusi restarte ei teki |
+| cron kontroll | restarti käsku pole |
+| systemd timer kontroll | kahtlast timerit pole |
+| watchdog kontroll | watchdog ei põhjusta restarti |
+| logid | restarti algatajat enam ei ilmu |
+
+Kui masin on stabiilne, siis jätka DHCP osaga:
+
+```text
+1. Paigalda isc-dhcp-server
+2. Määra DHCP serveri võrguliides
+3. Seadista DHCP scope
+4. Lisa staatilised lease’id
+5. Käivita DHCP teenus
+6. Testi klientidega
+```
+
+---
+
+## Kokkuvõte
+
+Linux pilet 5 puhul on mõistlik järjekord:
+
+```text
+1. DebianPilet5 ligipääs korda
+2. Restartimise põhjus üles leida
+3. Restartimist põhjustav tarkvaraline asi keelata
+4. Kontrollida, et masin püsib üleval
+5. Alles siis seadistada DHCP
+```
+
+Lühidalt:
+
+```text
+masin stabiilseks → õigused korda → DHCP teenus tööle → testimine → dokumentatsioon
+```
 10. grep -R "Automatic-Reboot" /etc/apt/apt.conf.d/
 11. systemctl status watchdog
 12. sudo grep -R "reboot\|shutdown" /etc /usr/local /opt 2>/dev/null
