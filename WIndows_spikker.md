@@ -141,6 +141,7 @@ Erinevus tuleb pileti lõpus olevast lisateenusest või eraldi praktilisest üle
 
 ## Kõige lühem spikker
 
+| Pilet | Mida lisaks baasosale kindlasti õppida? |
 |---|---|
 | Windows pilet 1 | IIS, HTTPS, AD CS, veebilehe autentimine |
 | Windows pilet 2 | DFS, DFS replikatsioon, FSRM |
