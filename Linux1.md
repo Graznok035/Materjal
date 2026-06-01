@@ -7,31 +7,26 @@ Siin ei ole lahti kirjutatud üldist Linuxi baasosa:
 - Ansible paigaldus UbuntuServerisse
 - Ansible inventory loomine
 - `hkhk` kasutaja loomine
-- sudo grupp
+- sudo gruppi lisamine
 - SSH võtmega ligipääs
 - SSH parooliga sisselogimise keelamine
-
-Need kuuluvad Linuxi üldise baasosa alla.
 
 ---
 
 ## Pilet 1 põhiteemad
 
-Linux pilet 1 keskendub järgmistele teemadele:
-
 | Teema | Mida tuleb teha |
 |---|---|
-| DebianPilet1 ligipääs | Taastada ligipääs DebianPilet1 serverile või teenusele |
+| DebianPilet1 | Taastada ligipääs ja teenused |
 | WordPress | Taastada WordPressi sisuhaldussüsteem |
 | Apache | Taastada veebiserveri töö |
-| MySQL/MariaDB | Taastada andmebaasi töö ja paroolid |
+| MySQL/MariaDB | Taastada andmebaasi töö |
 | Debian upgrade | Uuendada Debian 11.9 versioonile Debian 13.5 |
-| MySQL upgrade | Uuendada vana MySQL/MariaDB versioon |
-| SSL | Seadistada veebilehele SSL sertifikaat |
+| SSL | Seadistada veebilehele HTTPS |
 | UFW | Lubada ainult vajalikud pordid |
-| Vaultwarden | Paigaldada paroolihalduse keskkond UbuntuServerisse |
-| DNS | Luua paroolihaldusele FQDN DNS kirje |
-| Dokumentatsioon | Kirjeldada kogu tööprotsess |
+| Vaultwarden | Paigaldada paroolihaldur UbuntuServerisse |
+| DNS | Luua FQDN kirjed teenustele |
+| Dokumentatsioon | Dokumenteerida kogu protsess |
 
 ---
 
@@ -39,157 +34,195 @@ Linux pilet 1 keskendub järgmistele teemadele:
 
 ## Eesmärk
 
-Kõigepealt tuleb aru saada, mis serveris juba olemas on:
+Kõigepealt tuleb aru saada:
 
-- mis Debian versioon on peal
+- mis serveriga on tegu
+- mis IP-aadress serveril on
+- mis Debian versioon on paigaldatud
 - kas Apache töötab
 - kas andmebaas töötab
-- kus WordPress asub
+- kus asub WordPress
 - mis pordid on avatud
-- kas DNS/nimelahendus töötab
 
-## Käsud
+---
+
+## 1.1 Kontrolli hostname’i
 
 ```bash
 hostname
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse serveri nimi, näiteks `debianpilet1` | Kui nimi on vale või segane, dokumenteeri praegune nimi. Vajadusel muuda hostname hiljem käsuga `sudo hostnamectl set-hostname debianpilet1` |
+
+Kontrolli FQDN-i:
+
+```bash
 hostname -f
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse täielik nimi, näiteks `debianpilet1.sinuNimi.local` | Kui tuleb error või ainult hostname, siis FQDN pole õigesti seadistatud. Kontrolli `/etc/hosts` ja DNS kirjeid |
+
+---
+
+## 1.2 Kontrolli IP-aadressi
+
+```bash
 ip a
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed võrguliidesel IP-aadressi, näiteks `10.x.x.x/24` | Kui IP puudub, kontrolli võrguühendust, DHCP-d või staatilist IP seadistust |
+
+Kontrolli gateway’d:
+
+```bash
 ip route
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed `default via ...` rida | Kui default route puudub, ei pruugi server saada internetti ega teistesse võrkudesse |
+
+---
+
+## 1.3 Kontrolli Debiani versiooni
+
+```bash
 cat /etc/os-release
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed Debiani versiooni infot, alguses tõenäoliselt Debian 11 | Kui fail puudub või süsteem pole Debian, dokumenteeri tulemus ja kontrolli `cat /etc/debian_version` |
+
+```bash
 cat /etc/debian_version
 ```
 
-Kontrolli teenuseid:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Alguses võib olla näiteks `11.9` | Kui versioon on juba uuem, dokumenteeri see. Kui versioon on vanem/katki, tee enne uuendamist paketisüsteemi kontroll |
+
+---
+
+# 2. Kontrolli Apache, MySQL/MariaDB ja WordPressi olemasolu
+
+## 2.1 Kontrolli Apache teenust
 
 ```bash
 systemctl status apache2
-systemctl status mysql
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `active (running)` | Kui `inactive`, käivita `sudo systemctl start apache2`. Kui `failed`, kontrolli `sudo apache2ctl configtest` ja logisid |
+
+Kui Apache ei tööta, proovi käivitada:
+
+```bash
+sudo systemctl start apache2
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Käsk ei anna viga | Kui tuleb viga, käivita `sudo apache2ctl configtest` |
+
+Kontrolli Apache konfiguratsiooni:
+
+```bash
+sudo apache2ctl configtest
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `Syntax OK` | Kui näitab veaga faili ja rea numbrit, ava see fail `sudo nano FAILINIMI` ja paranda süntaks |
+
+---
+
+## 2.2 Kontrolli MySQL/MariaDB teenust
+
+Proovi MariaDB staatust:
+
+```bash
 systemctl status mariadb
 ```
 
-Kui ei tea, kas andmebaas on MySQL või MariaDB:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `active (running)` | Kui teenust pole, proovi `systemctl status mysql`. Kui teenus on `failed`, vaata logi `sudo journalctl -xeu mariadb` |
+
+Proovi MySQL staatust:
+
+```bash
+systemctl status mysql
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `active (running)` või info, et teenust pole | Kui ei ole MySQL, kasutatakse tõenäoliselt MariaDB-d |
+
+Kontrolli versiooni:
 
 ```bash
 mysql --version
-mariadb --version
 ```
 
-Kontrolli veebikausta:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse MySQL või MariaDB versioon | Kui `command not found`, paigalda andmebaasiserver hiljem käsuga `sudo apt install mariadb-server -y` |
+
+---
+
+## 2.3 Kontrolli veebikausta
 
 ```bash
 ls -lah /var/www/
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed näiteks `html` kausta | Kui `/var/www` puudub, ei pruugi Apache/WordPress paigaldatud olla |
+
+```bash
 ls -lah /var/www/html/
 ```
 
-Otsi WordPressi konfiguratsiooni:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed WordPressi faile, näiteks `wp-config.php`, `wp-content`, `wp-admin` | Kui näed ainult `index.html`, siis WordPress võib olla muus kaustas või pole paigaldatud |
 
-```bash
-find /var/www -name wp-config.php
-```
-
-Kontrolli porte:
-
-```bash
-ss -tulpen
-```
-
-Kontrolli tulemüüri:
-
-```bash
-sudo ufw status verbose
-```
-
----
-
-# 2. Taasta ligipääs DebianPilet1 serverile
-
-## Eesmärk
-
-Kui serverisse saab sisse, aga kasutajal pole õigusi, tuleb kontrollida kasutajaid ja sudo õiguseid.
-
-## Kontrolli olemasolevaid kasutajaid
-
-```bash
-cat /etc/passwd | grep home
-```
-
-või:
-
-```bash
-ls /home
-```
-
-Kontrolli, kes on sudo grupis:
-
-```bash
-getent group sudo
-```
-
-## Lisa kasutaja sudo gruppi
-
-Näide kasutajaga `hkhk`:
-
-```bash
-sudo usermod -aG sudo hkhk
-```
-
-Kontroll:
-
-```bash
-groups hkhk
-```
-
-Kui kasutaja peab uuesti sisse logima:
-
-```bash
-exit
-```
-
-Pärast uuesti sisselogimist:
-
-```bash
-sudo whoami
-```
-
-Oodatud väljund:
-
-```text
-root
-```
-
-## Vajadusel muuda kasutaja parool
-
-```bash
-sudo passwd hkhk
-```
-
----
-
-# 3. Kontrolli WordPressi andmebaasi seadeid
-
-## Eesmärk
-
-WordPressi ligipääsu taastamiseks tuleb kõigepealt leida andmebaasi nimi, kasutaja ja parool.
-
-Need asuvad tavaliselt failis:
-
-```text
-wp-config.php
-```
-
-## Leia `wp-config.php`
+Otsi WordPressi konfiguratsioonifaili:
 
 ```bash
 sudo find /var/www -name wp-config.php
 ```
 
-Näide:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Leitakse fail, näiteks `/var/www/html/wp-config.php` | Kui ei leia, siis WordPress pole selles asukohas või fail on kustutatud. Otsi laiemalt: `sudo find / -name wp-config.php 2>/dev/null` |
+
+---
+
+# 3. Kontrolli WordPressi andmebaasi seadeid
+
+## 3.1 Ava WordPressi konfiguratsioon
+
+Kui `wp-config.php` asub `/var/www/html` all:
 
 ```bash
-sudo nano /var/www/html/wp-config.php
+sudo grep DB_ /var/www/html/wp-config.php
 ```
 
-Vaata sealt read:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST` väärtuseid | Kui fail puudub, leia õige asukoht `sudo find / -name wp-config.php 2>/dev/null` |
+
+Näide, mida otsid:
 
 ```php
 define( 'DB_NAME', 'wordpress' );
@@ -198,145 +231,193 @@ define( 'DB_PASSWORD', 'parool' );
 define( 'DB_HOST', 'localhost' );
 ```
 
-Kiirkontroll käsuga:
-
-```bash
-sudo grep DB_ /var/www/html/wp-config.php
-```
-
----
-
-# 4. Taasta andmebaasi ligipääs
-
-## Eesmärk
-
-Kui WordPress ei saa andmebaasiga ühendust, tuleb kontrollida, kas andmebaas töötab ja kas kasutaja/parool on õiged.
-
-## Kontrolli andmebaasi teenust
-
-MariaDB puhul:
-
-```bash
-sudo systemctl status mariadb
-```
-
-MySQL puhul:
-
-```bash
-sudo systemctl status mysql
-```
-
-Kui teenus ei tööta:
-
-```bash
-sudo systemctl restart mariadb
-```
-
-või:
-
-```bash
-sudo systemctl restart mysql
-```
-
-Luba teenus käivitumisel:
-
-```bash
-sudo systemctl enable mariadb
-```
-
-või:
-
-```bash
-sudo systemctl enable mysql
-```
-
-## Logi andmebaasi sisse root kasutajana
-
-```bash
-sudo mysql
-```
-
-või:
-
-```bash
-sudo mariadb
-```
-
-Kontrolli andmebaase:
-
-```sql
-SHOW DATABASES;
-```
-
-Kontrolli kasutajaid:
-
-```sql
-SELECT user, host FROM mysql.user;
-```
-
-Kui WordPressi kasutaja parool on vaja taastada:
-
-```sql
-ALTER USER 'wordpressuser'@'localhost' IDENTIFIED BY 'UusTugevParool123!';
-FLUSH PRIVILEGES;
-EXIT;
-```
-
-Kui `ALTER USER` ei tööta, proovi:
-
-```sql
-SET PASSWORD FOR 'wordpressuser'@'localhost' = PASSWORD('UusTugevParool123!');
-FLUSH PRIVILEGES;
-EXIT;
-```
-
-Seejärel muuda sama parool ka WordPressi konfiguratsioonis:
+Ava fail vajadusel muutmiseks:
 
 ```bash
 sudo nano /var/www/html/wp-config.php
 ```
 
-Muuda rida:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Fail avaneb tekstiredaktoris | Kui tuleb `No such file`, on fail teises asukohas |
 
-```php
-define( 'DB_PASSWORD', 'UusTugevParool123!' );
+---
+
+# 4. Taasta andmebaasi ligipääs
+
+## 4.1 Logi andmebaasi root õigustes
+
+```bash
+sudo mysql
 ```
 
-Testi andmebaasi kasutajaga:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Avaneb MySQL/MariaDB käsurida `MariaDB [(none)]>` või `mysql>` | Kui tuleb ligipääsu viga, proovi `sudo mariadb`. Kui teenus ei tööta, käivita `sudo systemctl restart mariadb` |
+
+Alternatiiv:
+
+```bash
+sudo mariadb
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Avaneb MariaDB käsurida | Kui käsk puudub, kontrolli andmebaasi paigaldust |
+
+---
+
+## 4.2 Kontrolli andmebaase
+
+Andmebaasi sees:
+
+```sql
+SHOW DATABASES;
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed WordPressi andmebaasi, näiteks `wordpress` | Kui WordPressi andmebaasi pole, kontrolli `wp-config.php` faili `DB_NAME` väärtust |
+
+Vali WordPressi andmebaas:
+
+```sql
+USE wordpress;
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `Database changed` | Kui tuleb `Unknown database`, on andmebaasi nimi vale või andmebaas puudub |
+
+Kontrolli tabelid:
+
+```sql
+SHOW TABLES;
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed tabeleid nagu `wp_users`, `wp_posts`, `wp_options` | Kui tabeleid pole, võib andmebaas tühi või vale olla |
+
+---
+
+## 4.3 Kontrolli andmebaasi kasutajaid
+
+```sql
+SELECT user, host FROM mysql.user;
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed WordPressi kasutajat, näiteks `wordpressuser` | Kui kasutajat pole, loo kasutaja või paranda `wp-config.php` vastavalt olemasolevale kasutajale |
+
+---
+
+## 4.4 Muuda WordPressi andmebaasi kasutaja parool
+
+Näide:
+
+```sql
+ALTER USER 'wordpressuser'@'localhost' IDENTIFIED BY 'UusTugevParool123!';
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Käsk läheb läbi ilma errorita | Kui tuleb viga, kontrolli kasutajanime ja hosti käsuga `SELECT user, host FROM mysql.user;` |
+
+Rakenda õigused:
+
+```sql
+FLUSH PRIVILEGES;
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `Query OK` | Kui tuleb viga, kontrolli, kas oled andmebaasis root õigustes |
+
+Välju:
+
+```sql
+EXIT;
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Jõuad tagasi Linuxi käsureale | Kui ei välju, kasuta `\q` |
+
+Muuda sama parool WordPressi konfiguratsioonis:
+
+```bash
+sudo nano /var/www/html/wp-config.php
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Saad muuta `DB_PASSWORD` väärtuse samaks | Kui fail on teises asukohas, kasuta eelnevalt leitud `wp-config.php` teed |
+
+---
+
+## 4.5 Testi andmebaasi kasutajat
 
 ```bash
 mysql -u wordpressuser -p wordpress
 ```
 
-Kui saad sisse, on andmebaasi kasutaja korras.
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Pärast parooli sisestamist saad andmebaasi sisse | Kui tuleb `Access denied`, on parool, kasutaja või host vale. Kontrolli uuesti `wp-config.php` ja `mysql.user` tabelit |
+
+Välju:
+
+```sql
+EXIT;
+```
 
 ---
 
 # 5. Taasta WordPressi admin ligipääs
 
-## Variant A: WP-CLI olemasolul
+## Variant A: WP-CLI abil
 
-Kontrolli, kas `wp` käsk on olemas:
+Kontrolli, kas WP-CLI on olemas:
 
 ```bash
 wp --info
 ```
 
-Kui on olemas, vaata kasutajaid:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse WP-CLI info | Kui `command not found`, kasuta MySQL/MariaDB varianti |
+
+Mine WordPressi kausta:
 
 ```bash
 cd /var/www/html
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Oled WordPressi kaustas | Kui kaust pole õige, mine sinna, kus asub `wp-config.php` |
+
+Kuva WordPressi kasutajad:
+
+```bash
 sudo -u www-data wp user list
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed WordPressi kasutajaid | Kui tuleb andmebaasi error, kontrolli `wp-config.php` ja andmebaasi ühendust |
 
 Muuda admin parool:
 
 ```bash
-cd /var/www/html
 sudo -u www-data wp user update admin --user_pass='UusAdminParool123!'
 ```
 
-Kui admin kasutajanimi pole `admin`, kasuta õiget kasutajanime.
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kasutaja parool muudetakse | Kui kasutajat `admin` pole, vaata õige kasutajanimi käsuga `wp user list` |
 
 ---
 
@@ -348,17 +429,21 @@ Logi andmebaasi:
 sudo mysql
 ```
 
-Vali WordPressi andmebaas:
+Vali andmebaas:
 
 ```sql
 USE wordpress;
 ```
 
-Vaata kasutajaid:
+Kuva kasutajad:
 
 ```sql
 SELECT ID, user_login, user_email FROM wp_users;
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed WordPressi kasutajanimesid | Kui tabelit `wp_users` pole, võib tabeliprefix olla teine. Kontrolli `wp-config.php` failist `$table_prefix` väärtust |
 
 Muuda admin parool:
 
@@ -368,88 +453,133 @@ SET user_pass = MD5('UusAdminParool123!')
 WHERE user_login = 'admin';
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `Query OK`, vähemalt 1 rida muudetud | Kui 0 rida muutus, pole kasutajanimi `admin`. Kasuta eelnevas käsus nähtud kasutajanime |
+
 Välju:
 
 ```sql
 EXIT;
 ```
 
-Seejärel proovi WordPressi admin lehte:
-
-```text
-http://debian-serveri-ip/wp-admin
-```
-
-või FQDN kaudu:
-
-```text
-http://veeb.sinuNimi.local/wp-admin
-```
-
 ---
 
 # 6. Taasta Apache veebiserveri töö
 
-## Eesmärk
-
-WordPress peab brauseris avanema.
-
-## Paigalda vajalikud paketid
+## 6.1 Paigalda vajalikud paketid
 
 ```bash
 sudo apt update
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Paketiloend uuendatakse ilma errorita | Kui tuleb repo error, kontrolli `/etc/apt/sources.list` faili |
+
+```bash
 sudo apt install apache2 php php-mysql mariadb-server -y
 ```
 
-Vajadusel lisa levinud PHP moodulid:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Paketid paigaldatakse või on juba olemas | Kui paketid ei leidu, on repo vale või internet/DNS ei tööta |
+
+Lisa PHP moodulid:
 
 ```bash
 sudo apt install php-cli php-curl php-gd php-mbstring php-xml php-zip -y
 ```
 
-## Kontrolli Apache staatust
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Moodulid paigaldatakse | Kui mõni pakett puudub, jätka olemasolevatega ja dokumenteeri puuduv pakett |
 
-```bash
-sudo systemctl status apache2
-```
+---
 
-Kui vaja, käivita uuesti:
-
-```bash
-sudo systemctl restart apache2
-```
-
-Luba käivitumisel:
+## 6.2 Käivita teenused
 
 ```bash
 sudo systemctl enable apache2
 ```
 
-## Kontrolli Apache konfiguratsiooni
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Apache lubatakse käivitumisel | Kui teenust pole, paigalda `apache2` |
 
 ```bash
-sudo apache2ctl configtest
+sudo systemctl restart apache2
 ```
 
-Oodatud väljund:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Käsk lõpeb veata | Kui tuleb error, käivita `sudo apache2ctl configtest` |
 
-```text
-Syntax OK
+```bash
+sudo systemctl enable mariadb
 ```
 
-## Kontrolli veebilehte lokaalselt
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| MariaDB lubatakse käivitumisel | Kui teenust pole, kontrolli kas kasutusel on `mysql` |
+
+```bash
+sudo systemctl restart mariadb
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| MariaDB käivitub | Kui ei käivitu, vaata `sudo journalctl -xeu mariadb` |
+
+---
+
+## 6.3 Kontrolli veebilehte
 
 ```bash
 curl -I http://localhost
 ```
 
-Kui WordPress on `/var/www/html` all, kontrolli õiguseid:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Vastus `HTTP/1.1 200 OK` või `301/302` | Kui tuleb `Connection refused`, Apache ei kuula. Kontrolli `systemctl status apache2` |
+
+Kontrolli, kas port 80 kuulab:
+
+```bash
+sudo ss -tulpen | grep :80
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed `apache2` protsessi pordil 80 | Kui midagi ei näe, Apache ei kuula porti 80 või teenus ei tööta |
+
+---
+
+## 6.4 Paranda WordPressi failiõigused
 
 ```bash
 sudo chown -R www-data:www-data /var/www/html
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Käsk ei anna viga | Kui tuleb `No such file`, on WordPress teises kaustas |
+
+```bash
 sudo find /var/www/html -type d -exec chmod 755 {} \;
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kaustade õigused seatakse | Kui tuleb veateade, kontrolli kausta olemasolu |
+
+```bash
 sudo find /var/www/html -type f -exec chmod 644 {} \;
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Failide õigused seatakse | Kui tuleb veateade, kontrolli kausta olemasolu |
 
 Taaskäivita Apache:
 
@@ -463,26 +593,51 @@ sudo systemctl restart apache2
 
 ## Oluline
 
-Debiani uuendust ei ole mõistlik teha otse 11 → 13 ühe hüppega.
+Ära tee uuendust otse 11 → 13.
 
-Õige loogika:
+Turvalisem järjekord:
 
 ```text
-Debian 11 bullseye → Debian 12 bookworm → Debian 13 trixie
+Debian 11 → Debian 12 → Debian 13
 ```
 
 Enne uuendamist tee Proxmoxis snapshot või varukoopia.
 
-## Kontroll enne uuendamist
+---
+
+## 7.1 Kontroll enne uuendamist
 
 ```bash
-cat /etc/os-release
-cat /etc/debian_version
 df -h
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `/` partitsioonil on piisavalt vaba ruumi | Kui ruum on täis, tee `sudo apt autoremove --purge -y` ja puhasta logisid |
+
+```bash
 sudo apt update
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Paketiloend uuendatakse | Kui repo error, kontrolli `/etc/apt/sources.list` |
+
+```bash
 sudo apt full-upgrade -y
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Praeguse versiooni paketid uuendatakse | Kui tuleb katkine pakett, käivita `sudo apt --fix-broken install` |
+
+```bash
 sudo apt autoremove --purge -y
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Vanad paketid eemaldatakse | Kui midagi ei eemaldata, on ka okei |
 
 Tee sources.list varukoopia:
 
@@ -490,9 +645,13 @@ Tee sources.list varukoopia:
 sudo cp /etc/apt/sources.list /etc/apt/sources.list.backup
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Varukoopia luuakse | Kui fail puudub, kontrolli `/etc/apt/sources.list.d/` kausta |
+
 ---
 
-## Uuendus Debian 11 → Debian 12
+## 7.2 Uuendus Debian 11 → Debian 12
 
 Asenda `bullseye` sõnaga `bookworm`:
 
@@ -500,11 +659,19 @@ Asenda `bullseye` sõnaga `bookworm`:
 sudo sed -i 's/bullseye/bookworm/g' /etc/apt/sources.list
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Käsk ei anna väljundit | Kui failis pole `bullseye`, ava fail `cat /etc/apt/sources.list` ja vaata, mis release seal on |
+
 Kontrolli faili:
 
 ```bash
 cat /etc/apt/sources.list
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Failis on `bookworm` | Kui on ikka `bullseye`, muuda käsitsi `sudo nano /etc/apt/sources.list` |
 
 Uuenda paketiloend:
 
@@ -512,17 +679,29 @@ Uuenda paketiloend:
 sudo apt update
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Paketiloend tuleb Debian 12 repost | Kui tuleb GPG/repo error, kontrolli sources.list ridu |
+
 Tee minimaalne upgrade:
 
 ```bash
 sudo apt upgrade --without-new-pkgs -y
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Osa pakette uuendatakse | Kui tuleb error, käivita `sudo apt --fix-broken install` |
+
 Tee täielik upgrade:
 
 ```bash
 sudo apt full-upgrade -y
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Süsteem uuendatakse Debian 12 peale | Kui küsib config failide kohta, vali üldiselt `keep the local version`, kui oled ebakindel |
 
 Puhasta:
 
@@ -539,13 +718,16 @@ sudo reboot
 Pärast restarti kontrolli:
 
 ```bash
-cat /etc/os-release
 cat /etc/debian_version
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse Debian 12 versioon | Kui näitab ikka 11, siis upgrade ei lõppenud. Käivita uuesti `sudo apt full-upgrade -y` |
+
 ---
 
-## Uuendus Debian 12 → Debian 13
+## 7.3 Uuendus Debian 12 → Debian 13
 
 Asenda `bookworm` sõnaga `trixie`:
 
@@ -553,11 +735,19 @@ Asenda `bookworm` sõnaga `trixie`:
 sudo sed -i 's/bookworm/trixie/g' /etc/apt/sources.list
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Käsk ei anna väljundit | Kui failis pole `bookworm`, kontrolli `cat /etc/apt/sources.list` |
+
 Kontrolli faili:
 
 ```bash
 cat /etc/apt/sources.list
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Failis on `trixie` | Kui on ikka `bookworm`, muuda käsitsi `sudo nano /etc/apt/sources.list` |
 
 Uuenda paketiloend:
 
@@ -565,17 +755,29 @@ Uuenda paketiloend:
 sudo apt update
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Paketiloend tuleb Debian 13 repost | Kui tuleb repo error, kontrolli sources.list ridu |
+
 Tee minimaalne upgrade:
 
 ```bash
 sudo apt upgrade --without-new-pkgs -y
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Esmased paketid uuendatakse | Kui tuleb sõltuvuste viga, käivita `sudo apt --fix-broken install` |
+
 Tee täielik upgrade:
 
 ```bash
 sudo apt full-upgrade -y
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Süsteem uuendatakse Debian 13 peale | Kui katkeb, tee `sudo dpkg --configure -a`, siis korda `sudo apt full-upgrade -y` |
 
 Puhasta:
 
@@ -589,121 +791,151 @@ Restart:
 sudo reboot
 ```
 
-Kontrolli lõplikku versiooni:
+Pärast restarti:
 
 ```bash
-cat /etc/os-release
 cat /etc/debian_version
 ```
 
-Oodatud tulemus:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse Debian 13.x, ülesande järgi eesmärk 13.5 | Kui pole 13, uuendus ei lõppenud või repo jäi valeks |
 
-```text
-Debian GNU/Linux 13
-13.5
+```bash
+cat /etc/os-release
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `VERSION_ID="13"` või sarnane | Kui näitab 12 või 11, kontrolli sources.list ja korda upgrade |
 
 ---
 
-# 8. Uuenda MySQL/MariaDB versioon
+# 8. Uuenda MySQL/MariaDB
 
-## Eesmärk
-
-Pärast süsteemi uuendust tuleb kontrollida, et andmebaas on uuendatud ja töötab.
-
-## Kontrolli versiooni
+## 8.1 Kontrolli versiooni
 
 ```bash
 mysql --version
 ```
 
-või:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse MySQL/MariaDB versioon | Kui `command not found`, paigalda `sudo apt install mariadb-server mariadb-client -y` |
 
 ```bash
 mariadb --version
 ```
 
-## Uuenda paketid
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse MariaDB versioon | Kui käsku pole, võib kasutada `mysql --version` |
+
+---
+
+## 8.2 Paigalda/uuenda MariaDB
 
 ```bash
-sudo apt update
 sudo apt install mariadb-server mariadb-client -y
 ```
 
-## Käivita andmebaasi upgrade tööriist
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| MariaDB paigaldatakse või uuendatakse | Kui tuleb repo error, kontrolli apt allikaid |
 
-Uuematel MariaDB versioonidel:
+Käivita upgrade tööriist:
 
 ```bash
 sudo mariadb-upgrade
 ```
 
-Vanematel süsteemidel:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Andmebaasi süsteemitabelid uuendatakse | Kui käsku pole, proovi `sudo mysql_upgrade` |
+
+Alternatiiv:
 
 ```bash
 sudo mysql_upgrade
 ```
 
-Taaskäivita teenus:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Upgrade lõpeb edukalt või ütleb, et pole vajalik | Kui tuleb ühenduse viga, kontrolli `sudo systemctl status mariadb` |
+
+Taaskäivita andmebaas:
 
 ```bash
 sudo systemctl restart mariadb
 ```
 
-Kontrolli:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Teenus käivitub | Kui `failed`, vaata `sudo journalctl -xeu mariadb` |
+
+Kontroll:
 
 ```bash
 sudo systemctl status mariadb
 ```
 
-Testi sisselogimist:
-
-```bash
-sudo mariadb
-```
-
-ja:
-
-```sql
-SHOW DATABASES;
-EXIT;
-```
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `active (running)` | Kui mitte, kontrolli logisid ja konfiguratsiooni |
 
 ---
 
 # 9. Seadista Apache SSL sertifikaat
 
-## Eesmärk
-
-Veebileht peab avanema HTTPS kaudu.
-
-Kui eksamil pole vaja ametlikku Let’s Encrypt sertifikaati, sobib sisemine/self-signed sertifikaat.
-
-## Luba SSL moodul
+## 9.1 Luba vajalikud moodulid
 
 ```bash
 sudo a2enmod ssl
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Moodul lubatakse või öeldakse, et juba lubatud | Kui käsk puudub, pole Apache õigesti paigaldatud |
+
+```bash
 sudo a2enmod rewrite
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Moodul lubatakse või on juba lubatud | Kui tuleb error, kontrolli Apache paigaldust |
+
+Taaskäivita Apache:
+
+```bash
 sudo systemctl restart apache2
 ```
 
-## Loo sertifikaat
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Apache käivitub | Kui failed, käivita `sudo apache2ctl configtest` |
 
-Asenda FQDN enda veebilehe nimega.
+---
 
-Näide:
-
-```text
-veeb.sinuNimi.local
-```
-
-Loo sertifikaadi kaust:
+## 9.2 Loo sertifikaadi kaust
 
 ```bash
 sudo mkdir -p /etc/ssl/localcerts
 ```
 
-Loo self-signed sertifikaat:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kaust luuakse või oli juba olemas | Kui permission denied, kasuta `sudo` |
+
+---
+
+## 9.3 Loo self-signed sertifikaat
+
+Asenda FQDN enda nimega, näiteks:
+
+```text
+veeb.sinuNimi.local
+```
 
 ```bash
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
@@ -711,19 +943,29 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 -out /etc/ssl/localcerts/veeb.crt
 ```
 
-Common Name küsimuse juures sisesta:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Luuakse `veeb.key` ja `veeb.crt` | Kui openssl puudub, paigalda `sudo apt install openssl -y` |
 
-```text
-veeb.sinuNimi.local
+Kontrolli faile:
+
+```bash
+ls -lah /etc/ssl/localcerts/
 ```
 
-## Loo Apache HTTPS konfiguratsioon
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed `veeb.key` ja `veeb.crt` | Kui faile pole, korda openssl käsku |
+
+---
+
+## 9.4 Loo Apache HTTPS konfiguratsioon
 
 ```bash
 sudo nano /etc/apache2/sites-available/wordpress-ssl.conf
 ```
 
-Lisa:
+Lisa sisu:
 
 ```apache
 <VirtualHost *:443>
@@ -744,120 +986,223 @@ Lisa:
 </VirtualHost>
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Fail salvestub | Kui ei saa salvestada, kontrolli, et kasutasid `sudo nano` |
+
 Luba sait:
 
 ```bash
 sudo a2ensite wordpress-ssl.conf
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Sait lubatakse | Kui failinimi vale, kontrolli `ls /etc/apache2/sites-available/` |
+
+Kontrolli Apache konfiguratsiooni:
+
+```bash
 sudo apache2ctl configtest
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `Syntax OK` | Kui näitab viga, paranda viidatud fail ja rida |
+
+Laadi Apache uuesti:
+
+```bash
 sudo systemctl reload apache2
 ```
 
-Kontrolli:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Apache laeb seadistuse uuesti | Kui tuleb error, tee `sudo systemctl restart apache2` ja vaata logi |
+
+Testi HTTPS:
 
 ```bash
 curl -k -I https://veeb.sinuNimi.local
 ```
 
-Kui DNS veel ei tööta, testi IP kaudu:
-
-```bash
-curl -k -I https://SERVERI_IP
-```
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `HTTP/1.1 200 OK`, `301` või `302` | Kui nimi ei lahendu, lisa DNS kirje. Kui connection refused, kontrolli porti 443 ja Apache staatust |
 
 ---
 
 # 10. Seadista UFW tulemüür DebianPilet1 serveris
 
-## Eesmärk
-
-Lubatud peavad olema ainult vajalikud pordid.
-
-WordPressi/Apache serveris on tavaliselt vaja:
-
-| Port | Teenus |
-|---|---|
-| 22/tcp | SSH |
-| 80/tcp | HTTP |
-| 443/tcp | HTTPS |
-
-## Seadistus
+## 10.1 Paigalda UFW
 
 ```bash
 sudo apt install ufw -y
 ```
 
-Vaikimisi keela sissetulev liiklus:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| UFW paigaldatakse või on juba olemas | Kui paketti ei leita, kontrolli apt repo ja internetti |
+
+---
+
+## 10.2 Määra vaikereeglid
 
 ```bash
 sudo ufw default deny incoming
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Sissetulev liiklus keelatakse vaikimisi | Kui UFW käsku pole, paigalda UFW |
+
+```bash
 sudo ufw default allow outgoing
 ```
 
-Luba vajalikud pordid:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Väljaminev liiklus lubatakse | Kui error, kontrolli UFW paigaldust |
+
+---
+
+## 10.3 Luba vajalikud pordid
 
 ```bash
 sudo ufw allow 22/tcp
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| SSH port lubatakse | Kui kasutad teist SSH porti, luba õige port enne UFW sisselülitamist |
+
+```bash
 sudo ufw allow 80/tcp
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTP port lubatakse | Kui pole vaja HTTP-d, võib hiljem eemaldada |
+
+```bash
 sudo ufw allow 443/tcp
 ```
 
-Lülita UFW sisse:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTPS port lubatakse | Kui ei tööta, kontrolli UFW staatust |
+
+---
+
+## 10.4 Lülita UFW sisse
 
 ```bash
 sudo ufw enable
 ```
 
-Kontroll:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| UFW aktiveerub | Kui oled SSH-ga sees ja port 22 pole lubatud, võid ühenduse kaotada. Kontrolli enne `sudo ufw status` |
+
+Kontrolli reegleid:
 
 ```bash
 sudo ufw status numbered
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed lubatud porte 22, 80 ja 443 | Kui mõni puudub, lisa vastav `sudo ufw allow PORT/tcp` |
+
 ---
 
 # 11. Paigalda Vaultwarden UbuntuServerisse
 
-## Eesmärk
-
-UbuntuServerisse tuleb paigaldada paroolihalduse keskkond.
-
-Soovitatav lihtne lahendus on kasutada Dockerit ja Vaultwarden konteinerit.
-
-## Paigalda Docker
+## 11.1 Paigalda Docker
 
 ```bash
 sudo apt update
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Paketiloend uuendatakse | Kui DNS/repo error, kontrolli võrku ja DNS-i |
+
+```bash
 sudo apt install docker.io docker-compose-plugin -y
 ```
 
-Luba Docker käivitumisel:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Docker ja Compose plugin paigaldatakse | Kui pakette ei leita, kontrolli Ubuntu repo seadistust |
+
+Luba Docker:
 
 ```bash
 sudo systemctl enable docker
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Docker lubatakse käivitumisel | Kui teenust pole, kontrolli Docker paigaldust |
+
+Käivita Docker:
+
+```bash
 sudo systemctl start docker
 ```
 
-Kontroll:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Docker käivitub | Kui failed, vaata `sudo journalctl -xeu docker` |
+
+Kontrolli Dockerit:
 
 ```bash
 docker --version
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse Dockeri versioon | Kui `command not found`, paigaldus ei õnnestunud |
+
+```bash
 sudo docker ps
 ```
 
-## Loo Vaultwardeni kaust
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kuvatakse konteinerite tabel, isegi kui tühi | Kui daemon error, Docker ei tööta |
+
+---
+
+## 11.2 Loo Vaultwardeni kaust
 
 ```bash
 sudo mkdir -p /opt/vaultwarden
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kaust luuakse | Kui permission denied, kasuta `sudo` |
+
+```bash
 cd /opt/vaultwarden
 ```
 
-## Loo docker-compose fail
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Oled `/opt/vaultwarden` kaustas | Kui kausta pole, loo see eelmise käsuga |
+
+---
+
+## 11.3 Loo docker-compose fail
 
 ```bash
 sudo nano docker-compose.yml
 ```
 
-Sisu:
+Lisa:
 
 ```yaml
 services:
@@ -871,74 +1216,129 @@ services:
       - ./vw-data:/data
 ```
 
-Käivita konteiner:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Fail salvestub | Kui ei saa salvestada, kontrolli, et oled õiges kaustas ja kasutasid sudo |
+
+Käivita Vaultwarden:
 
 ```bash
 sudo docker compose up -d
 ```
 
-Kontroll:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Konteiner luuakse ja käivitub | Kui image download ei õnnestu, kontrolli internetti/DNS-i |
+
+Kontrolli konteinerit:
 
 ```bash
 sudo docker ps
 ```
 
-Kontroll lokaalselt:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed konteinerit `vaultwarden` staatusega `Up` | Kui konteiner puudub või exited, vaata `sudo docker logs vaultwarden` |
+
+Testi lokaalselt:
 
 ```bash
 curl -I http://127.0.0.1:8080
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTP vastus Vaultwardenilt | Kui connection refused, konteiner ei tööta või port pole seotud |
+
 ---
 
-# 12. Seadista Vaultwardenile Apache reverse proxy UbuntuServeris
+# 12. Seadista Vaultwardenile Apache reverse proxy
 
-## Eesmärk
-
-Vaultwarden võiks avaneda FQDN kaudu HTTPS-iga, näiteks:
-
-```text
-paroolihaldus.sinuNimi.local
-```
-
-Paigalda Apache:
+## 12.1 Paigalda Apache
 
 ```bash
 sudo apt install apache2 -y
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Apache paigaldatakse | Kui paketti ei leita, kontrolli apt repo |
+
 Luba vajalikud moodulid:
 
 ```bash
 sudo a2enmod proxy
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Proxy moodul lubatakse | Kui Apache puudub, paigalda apache2 |
+
+```bash
 sudo a2enmod proxy_http
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTP proxy moodul lubatakse | Kui error, kontrolli Apache mooduleid |
+
+```bash
 sudo a2enmod headers
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Headers moodul lubatakse | Kui error, kontrolli Apache paigaldust |
+
+```bash
 sudo a2enmod ssl
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| SSL moodul lubatakse | Kui error, paigalda/taasta Apache |
+
+Taaskäivita Apache:
+
+```bash
 sudo systemctl restart apache2
 ```
 
-Loo sertifikaat:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Apache käivitub | Kui failed, kontrolli `sudo apache2ctl configtest` |
+
+---
+
+## 12.2 Loo Vaultwardeni sertifikaat
 
 ```bash
 sudo mkdir -p /etc/ssl/localcerts
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Kaust on olemas | Kui permission denied, kasuta sudo |
+
+```bash
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 -keyout /etc/ssl/localcerts/paroolihaldus.key \
 -out /etc/ssl/localcerts/paroolihaldus.crt
 ```
 
-Common Name:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Tekivad sertifikaadi ja võtme failid | Kui openssl puudub, paigalda `sudo apt install openssl -y` |
 
-```text
-paroolihaldus.sinuNimi.local
-```
+---
 
-Loo Apache konfiguratsioon:
+## 12.3 Loo Apache reverse proxy konfiguratsioon
 
 ```bash
 sudo nano /etc/apache2/sites-available/vaultwarden.conf
 ```
 
-Sisu:
+Lisa:
 
 ```apache
 <VirtualHost *:443>
@@ -960,58 +1360,130 @@ Sisu:
 </VirtualHost>
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Fail salvestub | Kui ei saa salvestada, kontrolli õiguseid |
+
 Luba sait:
 
 ```bash
 sudo a2ensite vaultwarden.conf
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Sait lubatakse | Kui failinimi vale, kontrolli `ls /etc/apache2/sites-available/` |
+
+Kontrolli konfiguratsiooni:
+
+```bash
 sudo apache2ctl configtest
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `Syntax OK` | Kui näitab viga, paranda viidatud rida |
+
+Laadi Apache uuesti:
+
+```bash
 sudo systemctl reload apache2
 ```
 
-Test:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Apache laeb seadistuse | Kui error, tee `sudo systemctl status apache2` |
+
+Testi Vaultwardenit:
 
 ```bash
 curl -k -I https://paroolihaldus.sinuNimi.local
 ```
 
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTP vastus Vaultwardenilt | Kui nimi ei lahendu, lisa DNS kirje. Kui 502, kontrolli Docker konteinerit |
+
 ---
 
 # 13. Seadista UFW UbuntuServeris
 
-## Eesmärk
-
-UbuntuServeris, kus töötab Vaultwarden, peavad olema lubatud ainult vajalikud pordid.
-
-Kui Vaultwarden on Apache reverse proxy taga, siis väljast on vaja ainult:
-
-| Port | Teenus |
-|---|---|
-| 22/tcp | SSH |
-| 80/tcp | HTTP, kui vaja |
-| 443/tcp | HTTPS |
-
-Kuna konteiner on seotud aadressile `127.0.0.1:8080`, ei pea porti 8080 võrku avama.
-
-## Käsud
-
 ```bash
 sudo apt install ufw -y
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| UFW paigaldatakse | Kui repo error, kontrolli apt |
+
+```bash
 sudo ufw default deny incoming
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Sissetulev liiklus keelatakse vaikimisi | Kui käsk puudub, paigalda UFW |
+
+```bash
 sudo ufw default allow outgoing
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Väljaminev liiklus lubatakse | Kui error, kontrolli UFW paigaldust |
+
+```bash
 sudo ufw allow 22/tcp
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| SSH lubatakse | Kui SSH port on muu, luba õige port |
+
+```bash
 sudo ufw allow 80/tcp
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTP lubatakse | Kui HTTP pole vajalik, võib selle hiljem eemaldada |
+
+```bash
 sudo ufw allow 443/tcp
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTPS lubatakse | Kui ei lisandu, kontrolli `sudo ufw status numbered` |
+
+```bash
 sudo ufw enable
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| UFW aktiveerub | Kui oled SSH-ga sees, veendu enne, et 22/tcp on lubatud |
+
+```bash
 sudo ufw status numbered
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Näed lubatud porte 22, 80, 443 | Kui port puudub, lisa see `sudo ufw allow PORT/tcp` |
 
 ---
 
 # 14. Lisa DNS kirjed
 
-## Eesmärk
+## Kui DNS on Windows Serveris
 
-Teenused peavad avanema FQDN nimega.
+Lisa DNS Manageris A-kirjed:
+
+| Nimi | IP |
+|---|---|
+| `veeb` | DebianPilet1 IP |
+| `paroolihaldus` | UbuntuServer IP |
 
 Näited:
 
@@ -1020,25 +1492,9 @@ veeb.sinuNimi.local
 paroolihaldus.sinuNimi.local
 ```
 
-## Kui DNS on Windows Serveris
+---
 
-DNS Manageris lisa A-kirjed:
-
-| Nimi | IP |
-|---|---|
-| `veeb` | DebianPilet1 IP |
-| `paroolihaldus` | UbuntuServer IP |
-
-Näide:
-
-```text
-veeb.sinuNimi.local -> DebianPilet1 IP
-paroolihaldus.sinuNimi.local -> UbuntuServer IP
-```
-
-## Kui testid ajutiselt `/etc/hosts` failiga
-
-Linux kliendis:
+## Kui testid ajutiselt Linuxi /etc/hosts failiga
 
 ```bash
 sudo nano /etc/hosts
@@ -1051,314 +1507,241 @@ DEBIAN_IP veeb.sinuNimi.local
 UBUNTU_IP paroolihaldus.sinuNimi.local
 ```
 
-Windows kliendis:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Nimed hakkavad samas masinas lahenduma | Kui ei lahendu, kontrolli kirjavigu ja IP-aadresse |
 
-```text
-C:\Windows\System32\drivers\etc\hosts
-```
-
-Lisa administraatori õigustes:
-
-```text
-DEBIAN_IP veeb.sinuNimi.local
-UBUNTU_IP paroolihaldus.sinuNimi.local
-```
-
-## Kontroll
-
-Linuxis:
+Kontroll:
 
 ```bash
 ping veeb.sinuNimi.local
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Nimi lahendub DebianPilet1 IP-ks | Kui `Name or service not known`, DNS või hosts kirje puudub |
+
+```bash
 ping paroolihaldus.sinuNimi.local
 ```
 
-Windowsis:
-
-```cmd
-nslookup veeb.sinuNimi.local
-nslookup paroolihaldus.sinuNimi.local
-```
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Nimi lahendub UbuntuServeri IP-ks | Kui ei lahendu, kontrolli DNS/hosts kirjet |
 
 ---
 
 # 15. Lõputestid
 
-## DebianPilet1 veebiserver
+## DebianPilet1
 
 ```bash
 systemctl status apache2
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `active (running)` | Kui failed, kontrolli `apache2ctl configtest` ja logisid |
+
+```bash
 systemctl status mariadb
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `active (running)` | Kui failed, kontrolli `journalctl -xeu mariadb` |
+
+```bash
 curl -I http://localhost
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTP vastus | Kui connection refused, Apache ei tööta |
+
+```bash
 curl -k -I https://veeb.sinuNimi.local
 ```
 
-Brauseris:
-
-```text
-https://veeb.sinuNimi.local
-```
-
-WordPress admin:
-
-```text
-https://veeb.sinuNimi.local/wp-admin
-```
-
----
-
-## Debian versioon
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| HTTPS vastus | Kui DNS error, kontrolli DNS. Kui SSL error, kontrolli Apache SSL conf |
 
 ```bash
-cat /etc/os-release
 cat /etc/debian_version
 ```
 
-Oodatud:
-
-```text
-Debian 13
-13.5
-```
-
----
-
-## Andmebaas
-
-```bash
-mysql --version
-sudo mariadb -e "SHOW DATABASES;"
-```
-
----
-
-## Tulemüür
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Debian 13.x, ülesande järgi eesmärk 13.5 | Kui näitab 11/12, upgrade jäi pooleli |
 
 ```bash
 sudo ufw status verbose
 ```
 
-Lubatud peaksid olema ainult vajalikud pordid:
-
-```text
-22/tcp
-80/tcp
-443/tcp
-```
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Lubatud ainult vajalikud pordid | Kui liiga palju porte avatud, eemalda üleliigsed `sudo ufw delete allow PORT/tcp` |
 
 ---
 
-## Vaultwarden
-
-UbuntuServeris:
+## UbuntuServer / Vaultwarden
 
 ```bash
 sudo docker ps
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| `vaultwarden` konteiner on `Up` | Kui `Exited`, vaata `sudo docker logs vaultwarden` |
+
+```bash
 curl -I http://127.0.0.1:8080
+```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Vaultwarden vastab lokaalselt | Kui connection refused, konteiner ei tööta või port vale |
+
+```bash
 curl -k -I https://paroolihaldus.sinuNimi.local
 ```
 
-Brauseris:
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Vaultwarden avaneb HTTPS kaudu | Kui 502, kontrolli Apache proxy ja Docker konteinerit. Kui DNS error, kontrolli DNS kirjet |
 
-```text
-https://paroolihaldus.sinuNimi.local
+```bash
+sudo ufw status verbose
 ```
+
+| Oodatav tulemus | Kui tulemus on teine |
+|---|---|
+| Lubatud 22, 80 ja 443 | Kui 8080 on avatud, pole see vajalik, sest Vaultwarden on seotud 127.0.0.1 külge |
 
 ---
 
-# 16. Dokumentatsiooni näidis
+# 16. Troubleshooting
 
-Dokumentatsiooni jaoks kirjuta umbes nii:
+## WordPress näitab “Error establishing a database connection”
 
-```markdown
-## Linux pilet 1 dokumentatsioon
-
-### Eesmärk
-
-Eesmärk oli taastada DebianPilet1 serveris töötav WordPressi veebileht, uuendada Debian operatsioonisüsteem versioonile 13.5, uuendada andmebaasiteenus, seadistada SSL, piirata tulemüüriga lubatud pordid ning paigaldada UbuntuServerisse Vaultwarden paroolihaldus.
-
-### Kasutatud masinad
-
-| Masin | Roll |
-|---|---|
-| DebianPilet1 | Apache, WordPress, MariaDB/MySQL |
-| UbuntuServer | Vaultwarden paroolihaldus |
-| Windows/DNS server | DNS kirjete haldus |
-
-### Tehtud seadistused
-
-- Kontrollisin DebianPilet1 serveri versiooni ja teenuste olekut.
-- Taastasin WordPressi andmebaasi kasutaja ligipääsu.
-- Taastasin WordPress admin kasutaja parooli.
-- Kontrollisin ja parandasin Apache veebiserveri konfiguratsiooni.
-- Uuendasin Debian 11 süsteemi järjest Debian 12 ja Debian 13 peale.
-- Uuendasin MariaDB/MySQL teenuse.
-- Seadistasin Apache SSL sertifikaadi.
-- Lubasin UFW tulemüüris ainult vajalikud pordid.
-- Paigaldasin UbuntuServerisse Dockeriga Vaultwardeni.
-- Seadistasin Vaultwardenile Apache reverse proxy ja HTTPS ligipääsu.
-- Lisasin DNS kirjed veebilehele ja paroolihaldusele.
-
-### Kontrollid
-
-| Kontroll | Tulemus |
-|---|---|
-| `cat /etc/debian_version` | Debian 13.5 |
-| `systemctl status apache2` | Apache töötab |
-| `systemctl status mariadb` | MariaDB töötab |
-| `curl -k -I https://veeb.sinuNimi.local` | HTTPS vastab |
-| `sudo ufw status` | Lubatud ainult vajalikud pordid |
-| `sudo docker ps` | Vaultwarden konteiner töötab |
-| `https://paroolihaldus.sinuNimi.local` | Vaultwarden avaneb |
-
-### Kokkuvõte
-
-Linux pilet 1 lahenduse tulemusena töötab DebianPilet1 serveris WordPressi veebileht HTTPS kaudu ning UbuntuServeris töötab Vaultwarden paroolihaldus. Teenustele on loodud FQDN nimed ja tulemüüris on lubatud ainult vajalikud pordid.
-```
-
----
-
-# Troubleshooting
-
-## 1. WordPress näitab "Error establishing a database connection"
-
-Kontrolli `wp-config.php` faili:
+Kontrolli:
 
 ```bash
 sudo grep DB_ /var/www/html/wp-config.php
 ```
 
-Kontrolli, kas andmebaas töötab:
+Kui andmed on valed, paranda:
+
+```bash
+sudo nano /var/www/html/wp-config.php
+```
+
+Kontrolli andmebaasi:
 
 ```bash
 sudo systemctl status mariadb
 ```
 
-Testi WordPressi andmebaasi kasutajaga:
+Testi kasutajaga:
 
 ```bash
 mysql -u wordpressuser -p wordpress
 ```
 
-Kui sisse ei saa, muuda parool andmebaasis ja `wp-config.php` failis samaks.
+Kui tuleb `Access denied`, muuda andmebaasi parool ja pane sama parool `wp-config.php` faili.
 
 ---
 
-## 2. Apache ei käivitu
+## Apache ei käivitu
 
-Kontrolli konfiguratsiooni:
+Kontrolli:
 
 ```bash
 sudo apache2ctl configtest
 ```
 
-Vaata logisid:
+Kui tulemus ei ole `Syntax OK`, paranda näidatud fail ja rida.
+
+Vaata logi:
 
 ```bash
 sudo journalctl -xeu apache2
+```
+
+või:
+
+```bash
 sudo tail -n 50 /var/log/apache2/error.log
 ```
 
-Tüüpilised põhjused:
-
-| Probleem | Lahendus |
-|---|---|
-| Port 80/443 juba kasutusel | `sudo ss -tulpen` |
-| Sertifikaadi failitee vale | kontrolli Apache conf failis `SSLCertificateFile` |
-| Süntaksiviga conf failis | `apache2ctl configtest` näitab rea |
-
 ---
 
-## 3. HTTPS ei avane
+## HTTPS ei tööta
 
-Kontrolli, kas SSL moodul on lubatud:
+Kontrolli SSL moodulit:
 
 ```bash
 sudo apache2ctl -M | grep ssl
 ```
 
-Kui ei ole:
+Kui väljund puudub:
 
 ```bash
 sudo a2enmod ssl
 sudo systemctl restart apache2
 ```
 
-Kontrolli, kas port 443 kuulab:
+Kontrolli porti:
 
 ```bash
-sudo ss -tulpen | grep 443
+sudo ss -tulpen | grep :443
 ```
 
-Kontrolli UFW:
-
-```bash
-sudo ufw status
-```
-
-Kui 443 pole lubatud:
-
-```bash
-sudo ufw allow 443/tcp
-```
+Kui 443 ei kuula, kontrolli Apache HTTPS konfiguratsiooni ja UFW reeglit.
 
 ---
 
-## 4. DNS nimi ei lahendu
+## DNS nimi ei lahendu
 
-Kontroll:
-
-```bash
-nslookup veeb.sinuNimi.local
-```
-
-või Linuxis:
+Kontrolli:
 
 ```bash
 getent hosts veeb.sinuNimi.local
 ```
 
-Kui vastust ei tule:
+Kui vastust pole:
 
-| Probleem | Lahendus |
-|---|---|
-| DNS kirje puudub | lisa A-kirje DNS serverisse |
-| klient kasutab valet DNS-i | kontrolli `ipconfig /all` või `/etc/resolv.conf` |
-| DNS vahemälu segab | Windowsis `ipconfig /flushdns` |
+- lisa DNS A-kirje
+- kontrolli, et klient kasutab õiget DNS serverit
+- ajutiselt lisa kirje `/etc/hosts` faili
 
 ---
 
-## 5. Debian upgrade läheb katki
+## Debian upgrade jäi pooleli
 
-Kontrolli katkiseid pakette:
+Paranda katkised paketid:
 
 ```bash
 sudo apt --fix-broken install
 ```
 
-Jätka poolelijäänud seadistust:
+Lõpeta pooleliolev seadistus:
 
 ```bash
 sudo dpkg --configure -a
 ```
 
-Uuenda uuesti:
+Korda upgrade’i:
 
 ```bash
 sudo apt update
 sudo apt full-upgrade -y
 ```
 
-Kui repo on vale, taasta varukoopia:
-
-```bash
-sudo cp /etc/apt/sources.list.backup /etc/apt/sources.list
-sudo apt update
-```
-
 ---
 
-## 6. MariaDB/MySQL ei käivitu pärast upgrade’i
+## MariaDB ei käivitu
 
 Vaata logi:
 
@@ -1366,13 +1749,7 @@ Vaata logi:
 sudo journalctl -xeu mariadb
 ```
 
-Kontrolli konfiguratsiooni:
-
-```bash
-sudo mysqld --verbose --help
-```
-
-Proovi upgrade tööriista:
+Proovi upgrade’i:
 
 ```bash
 sudo mariadb-upgrade
@@ -1386,15 +1763,15 @@ sudo systemctl restart mariadb
 
 ---
 
-## 7. Vaultwarden konteiner ei tööta
+## Vaultwarden ei tööta
 
-Kontrolli konteinerit:
+Kontrolli konteinereid:
 
 ```bash
 sudo docker ps -a
 ```
 
-Vaata logisid:
+Vaata logi:
 
 ```bash
 sudo docker logs vaultwarden
@@ -1408,66 +1785,27 @@ sudo docker compose down
 sudo docker compose up -d
 ```
 
-Kui port on hõivatud:
-
-```bash
-sudo ss -tulpen | grep 8080
-```
-
----
-
-## 8. Vaultwarden avaneb lokaalselt, aga mitte FQDN kaudu
-
-Kontrolli Apache reverse proxy:
-
-```bash
-sudo apache2ctl configtest
-sudo systemctl status apache2
-```
-
-Kontrolli DNS:
-
-```bash
-nslookup paroolihaldus.sinuNimi.local
-```
-
-Kontrolli HTTPS:
-
-```bash
-curl -k -I https://paroolihaldus.sinuNimi.local
-```
-
-Kontrolli, kas konteiner vastab:
-
-```bash
-curl -I http://127.0.0.1:8080
-```
-
-Kui lokaalne töötab, aga FQDN mitte, on viga tavaliselt:
-
-- DNS kirjes
-- Apache reverse proxy konfiguratsioonis
-- UFW tulemüüris
-- SSL konfiguratsioonis
-
 ---
 
 # Kõige lühem spikker
 
 ```text
-1. Kontrolli DebianPilet1 teenused
-2. Leia wp-config.php
-3. Taasta andmebaasi kasutaja/parool
-4. Taasta WordPress admin parool
-5. Pane Apache ja MariaDB tööle
-6. Uuenda Debian 11 → 12 → 13
-7. Uuenda MariaDB/MySQL
-8. Tee Apache SSL
-9. Luba UFW-s ainult 22, 80, 443
-10. Paigalda UbuntuServerisse Docker
-11. Paigalda Vaultwarden
-12. Tee Vaultwardenile HTTPS reverse proxy
-13. Lisa DNS kirjed
-14. Testi veeb, WordPress, HTTPS, UFW ja Vaultwarden
-15. Dokumenteeri
+1. Kontrolli DebianPilet1 versioon, IP, hostname
+2. Kontrolli Apache ja MariaDB staatust
+3. Leia wp-config.php
+4. Kontrolli DB_NAME, DB_USER, DB_PASSWORD
+5. Taasta andmebaasi kasutaja parool
+6. Taasta WordPress admin parool
+7. Pane Apache ja MariaDB tööle
+8. Uuenda Debian 11 → 12 → 13
+9. Uuenda MariaDB/MySQL
+10. Loo SSL sertifikaat
+11. Seadista Apache HTTPS
+12. Luba UFW-s 22, 80, 443
+13. Paigalda UbuntuServerisse Docker
+14. Paigalda Vaultwarden
+15. Tee Apache reverse proxy
+16. Lisa DNS kirjed
+17. Testi HTTPS, WordPress, UFW ja Vaultwarden
+18. Dokumenteeri
 ```
