@@ -1809,3 +1809,315 @@ sudo docker compose up -d
 17. Testi HTTPS, WordPress, UFW ja Vaultwarden
 18. Dokumenteeri
 ```
+
+
+# Dockeri paigaldus ja kontroll Debian serveris
+
+## Eesmärk
+
+Serverisse paigaldati Docker, et vajadusel käivitada teenuseid konteineritena. Kontrolliti ka Docker Compose olemasolu.
+
+Antud süsteemis kasutati Debian paketihaldust. Docker Compose paigaldus toimus paketina `docker-compose`, kuna paketti `docker-compose-plugin` ei olnud kasutatavatest repositooriumitest võimalik leida.
+
+---
+
+## 1. Pakettide nimekirja uuendamine
+
+Enne Dockeri paigaldamist uuendati pakettide nimekiri.
+
+```bash
+sudo apt update
+```
+
+**Milleks?**  
+See uuendab serveri infot selle kohta, millised paketid on repositooriumites saadaval.
+
+---
+
+## 2. Docker Engine ja Docker Compose paigaldamine
+
+Paigaldati Docker Engine ning klassikaline Docker Compose pakett.
+
+```bash
+sudo apt install docker.io docker-compose -y
+```
+
+**Milleks?**
+
+- `docker.io` paigaldab Docker Engine teenuse ehk Docker daemon'i.
+- `docker-compose` paigaldab Compose tööriista, millega saab käivitada teenuseid `docker-compose.yml` faili põhjal.
+
+---
+
+## 3. Docker Compose plugini probleem
+
+Prooviti paigaldada paketti:
+
+```bash
+sudo apt install docker.io docker-compose-plugin -y
+```
+
+Süsteem tagastas vea:
+
+```text
+Error: Unable to locate package docker-compose-plugin
+```
+
+See tähendab, et pakett `docker-compose-plugin` ei olnud kasutatavates Debian repositooriumites selle nimega saadaval.
+
+Lahendusena kasutati Debianis olemasolevat paketti:
+
+```bash
+sudo apt install docker-compose -y
+```
+
+Seega tuleb antud serveris kasutada Compose käske kujul:
+
+```bash
+docker-compose up -d
+docker-compose down
+docker-compose ps
+```
+
+mitte tingimata kujul:
+
+```bash
+docker compose up -d
+```
+
+---
+
+## 4. Docker teenuse käivitamine
+
+Pärast paigaldamist lubati Docker teenus automaatselt käivituma ning käivitati see kohe.
+
+```bash
+sudo systemctl enable --now docker
+```
+
+**Milleks?**  
+See teeb kaks asja korraga:
+
+- `enable` paneb Docker teenuse käivituma automaatselt pärast serveri restarti;
+- `--now` käivitab teenuse kohe.
+
+---
+
+## 5. Docker teenuse oleku kontroll
+
+Kontrolliti, kas Docker teenus töötab.
+
+```bash
+sudo systemctl status docker
+```
+
+Oodatav tulemus:
+
+```text
+active (running)
+```
+
+Kui teenus töötab, võib logides näha näiteks:
+
+```text
+Started docker.service - Docker Application Container Engine
+```
+
+See tähendab, et Docker daemon on käivitatud.
+
+---
+
+## 6. Docker käsu kontroll
+
+Kontrolliti, kas Dockeriga saab ühenduse.
+
+```bash
+sudo docker ps
+```
+
+Kui Docker töötab, kuvatakse konteinerite nimekiri. Kui ühtegi konteinerit veel ei tööta, võib nimekiri olla tühi.
+
+Oodatav väljund võib olla näiteks:
+
+```text
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+
+Oluline on see, et ei tekiks enam viga:
+
+```text
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock.
+Is the docker daemon running?
+```
+
+---
+
+## 7. Docker Compose kontroll
+
+Kontrolliti klassikalise Docker Compose käsu olemasolu.
+
+```bash
+docker-compose version
+```
+
+Kui käsk kuvab versiooni, on Docker Compose olemas ja kasutatav.
+
+Näide:
+
+```text
+docker-compose version 1.x.x
+```
+
+Võib proovida ka uuemat käsuvarianti:
+
+```bash
+docker compose version
+```
+
+Kui `docker compose version` ei tööta, aga `docker-compose version` töötab, kasutatakse selles serveris Compose käske sidekriipsuga kujul:
+
+```bash
+docker-compose up -d
+```
+
+---
+
+## 8. Kasutaja lisamine Docker gruppi
+
+Et kasutaja `hkh` saaks Dockerit kasutada ilma `sudo` käsuta, lisati kasutaja Docker gruppi.
+
+```bash
+sudo usermod -aG docker hkh
+```
+
+Muudatus rakendub pärast uuesti sisse logimist.
+
+```bash
+exit
+ssh hkh@SERVERI_IP
+```
+
+Pärast uuesti sisselogimist kontrolliti:
+
+```bash
+docker ps
+```
+
+Kui õigused ei ole veel rakendunud või tekib veateade, saab eksami ajal kasutada Dockerit ka `sudo` abil:
+
+```bash
+sudo docker ps
+```
+
+---
+
+## 9. Tekkinud probleem ja lahendus
+
+### Probleem 1: Docker daemon ei töötanud
+
+Alguses tekkis Docker käsu kasutamisel viga:
+
+```text
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock.
+Is the docker daemon running?
+```
+
+Samuti ei leitud teenust:
+
+```text
+Unit docker.service not found
+```
+
+See tähendas, et Docker käsurea tööriistad olid osaliselt olemas, kuid Docker Engine teenus ei olnud korrektselt paigaldatud või käivitatud.
+
+### Lahendus
+
+Paigaldati Docker Engine pakett:
+
+```bash
+sudo apt install docker.io docker-compose -y
+```
+
+Seejärel käivitati Docker teenus:
+
+```bash
+sudo systemctl enable --now docker
+```
+
+Kontrolliti teenuse olekut:
+
+```bash
+sudo systemctl status docker
+```
+
+Pärast seda töötas Docker daemon ning kontrollkäsk:
+
+```bash
+sudo docker ps
+```
+
+ei andnud enam Docker daemon ühenduse viga.
+
+---
+
+## 10. Kasutatud käsud kokkuvõtlikult
+
+```bash
+sudo apt update
+sudo apt install docker.io docker-compose -y
+sudo systemctl enable --now docker
+sudo systemctl status docker
+sudo docker ps
+docker-compose version
+sudo usermod -aG docker hkh
+groups hkh
+```
+
+---
+
+## 11. Kontrollpunktid
+
+Dockeri seadistus loeti õnnestunuks, kui täidetud olid järgmised tingimused:
+
+- `docker.service` on olekus `active (running)`;
+- käsk `sudo docker ps` töötab ilma daemon veata;
+- käsk `docker-compose version` kuvab Compose versiooni;
+- vajadusel kuulub kasutaja `hkh` gruppi `docker`.
+
+Kasutaja gruppide kontroll:
+
+```bash
+groups hkh
+```
+
+Oodatav tulemus sisaldab gruppi:
+
+```text
+docker
+```
+
+---
+
+## 12. Märkus dokumentatsiooni jaoks
+
+Selles Debian keskkonnas ei olnud pakett `docker-compose-plugin` saadaval. Seetõttu kasutati klassikalist Docker Compose paketti:
+
+```bash
+sudo apt install docker-compose -y
+```
+
+Antud lahenduses kasutatakse Compose käske kujul:
+
+```bash
+docker-compose up -d
+```
+
+Kui süsteemis on olemas uuem pluginipõhine Compose, võib kasutada ka kujul:
+
+```bash
+docker compose up -d
+```
+
+Antud serveris dokumenteeriti töötavaks lahenduseks `docker-compose`.
+
+
