@@ -1211,7 +1211,7 @@ services:
     container_name: vaultwarden
     restart: always
     ports:
-      - "127.0.0.1:8080:80"
+      - "8080:80"
     volumes:
       - ./vw-data:/data
 ```
