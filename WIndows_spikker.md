@@ -1,150 +1,174 @@
 # Windowsi piletite baasosa ja lisateenused
 
-See tabel annab kiire ülevaate, mida on vaja teha iga Windowsi pileti puhul.
+See dokument annab ülevaate, mida tuleb teha kõikides Windowsi piletites ning millised lisateenused on iga konkreetse pileti puhul vajalikud.
 
-Kõik Windowsi piletid algavad sama baasülesandega: tuleb luua AS Õige Windows Serveri põhine IT terviklahendus.  
-Erinevus tuleb pileti lõpus olevast lisateenusest või eraldi praktilisest ülesandest.
+Kõik Windowsi piletid sisaldavad ühist baasosa:
+
+- Active Directory domeen
+- DNS server
+- DHCP server
+- DHCP failover
+- OU struktuur
+- kasutajate import CSV failist
+- Windows 11 kliendi lisamine domeeni
+- GPO poliitikad
+
+Lisaks on igal piletil oma eraldi lisateenus või praktiline eriosa.
 
 ---
 
-## Windowsi piletite ühine baasosa
+## 1. Kõikide Windowsi piletite baasosa
 
-| Osa | Mida tuleb teha | Vajalik roll / teenus | Selgitus |
+| Teema | Mida tuleb teha | Vajalik roll / tööriist | Milleks seda vaja on |
 |---|---|---|---|
-| AD domeen | Loo domeen `sinuNimi.local` | Active Directory Domain Services ehk AD DS | Windows Server GUI masinast saab esimene domeenikontroller `DC1` |
-| Teine domeenikontroller | Lisa Windows Server Core domeenikontrolleriks | AD DS | Server Core masinast saab teine domeenikontroller `DC2` |
-| DNS | DNS peab olema paigaldatud | DNS Server | DNS on vajalik domeeni toimimiseks ja nimelahenduseks |
-| DHCP | Seadista DHCP server | DHCP Server | Jagab klientidele IP-aadresse |
-| DHCP failover | Seadista DHCP failover DC1 ja DC2 vahel | DHCP Server | Kui üks DHCP server ei tööta, saab teine edasi IP-aadresse jagada |
-| Staatilised rendid | Lisa klientidele DHCP reservation’id | DHCP Server | Kõigile Windowsi ja Linuxi klientidele kindlad IP-d |
-| DHCP rendiaeg | Määra DHCP lease time 4 tundi | DHCP Server | IP-aadressi rendi kehtivusaeg |
-| DHCP DNS seaded | DHCP peab jagama DNS serveritena mõlema domeenikontrolleri IP-d | DHCP Options | Klient peab kasutama domeeni DNS-servereid |
-| OU struktuur | Loo domeeni OU-d `Kasutajad` ja `Arvutid` | Active Directory Users and Computers | Kasutajad ja arvutid hoitakse eraldi OU-des |
-| Admin kasutaja | Loo kasutaja `Haldur` ja lisa `Domain Admins` gruppi | ADUC | Halduskasutaja domeeni administreerimiseks |
-| Windows 11 klient | Lisa Windows 11 klient domeeni | System Properties / Settings | Klient peab olema domeenis |
-| Arvuti OU | Paiguta Windows 11 klient OU-sse `Arvutid` | ADUC | GPO rakendub õigele arvuti OU-le |
-| DNS kirjed | Lisa vajalikud DNS kirjed | DNS Manager | Piletis nõutud teenuste nimelahendus |
-| Kasutajate import | Impordi kasutajad CSV failist | PowerShell | Kasutajad luuakse automaatselt OU struktuuri järgi |
-| Paroolipoliitika | Loo või seadista GPO `ParooliKehtivus` | Group Policy Management | Parooli maksimaalne eluiga 30 päeva |
-| Kontolukustus | Loo GPO `KontodeLukustamine` | Group Policy Management | Konto lukustub 15 minutiks pärast 5 valet parooli |
-| USB piirang | Loo GPO `KeelaUSB` | Group Policy Management | Keelab OU `Arvutid` arvutites USB andmekandjate lugemise ja kirjutamise |
+| Domeen | Loo AD domeen `sinuNimi.local` | Active Directory Domain Services | Domeeni, kasutajate ja arvutite keskseks haldamiseks |
+| DC1 | Windows Server GUI masin seadista esimeseks domeenikontrolleriks | AD DS + DNS | Peamine domeenikontroller |
+| DC2 | Windows Server Core masin seadista teiseks domeenikontrolleriks | AD DS + DNS | Varudomeenikontroller |
+| DNS | Paigalda ja seadista DNS roll | DNS Server | Domeeni ja serverite nimelahenduseks |
+| DHCP | Paigalda ja seadista DHCP | DHCP Server | Klientidele IP-aadresside jagamiseks |
+| DHCP failover | Seadista DHCP failover DC1 ja DC2 vahel | DHCP Server | DHCP töökindluse tagamiseks |
+| Staatilised rendid | Lisa reservation’id klientarvutitele | DHCP Manager | Klientidele kindlate IP-aadresside määramiseks |
+| DHCP lease time | Määra rendi kehtivusajaks 4 tundi | DHCP Scope Properties | IP rendi aja määramiseks |
+| DHCP DNS option | DHCP peab jagama mõlema DC DNS-aadresse | DHCP Options | Klient peab kasutama domeeni DNS-servereid |
+| OU struktuur | Loo OU-d `Kasutajad` ja `Arvutid` | Active Directory Users and Computers | Kasutajate ja arvutite loogiliseks eraldamiseks |
+| Haldur kasutaja | Loo kasutaja `Haldur` ja lisa `Domain Admins` gruppi | ADUC | Administraatori õigustega domeenikasutaja |
+| Windows 11 klient | Lisa Windows 11 klient domeeni | Windows Settings / System Properties | Et klient saaks kasutada domeeni kasutajaid ja GPO-sid |
+| Arvuti OU | Tõsta Windows 11 klient OU-sse `Arvutid` | ADUC | Et arvutile rakenduksid õiged GPO-d |
+| Kasutajate import | Impordi kasutajad failist `kasutajad.csv` | PowerShell | Kasutajate automaatseks loomiseks |
+| Paroolipoliitika | Loo GPO `ParooliKehtivus` | Group Policy Management | Parooli maksimaalne eluiga 30 päeva |
+| Kontolukustus | Loo GPO `KontodeLukustamine` | Group Policy Management | Konto lukustub 15 minutiks pärast 5 vale parooli |
+| USB piirang | Loo GPO `KeelaUSB` | Group Policy Management | Keelab USB andmekandjate lugemise ja kirjutamise |
 
 ---
 
-## Windowsi piletite lisateenused ja eriosad
+## 2. Piletite lisateenused
 
-| Pilet | Lisateenus / eriosa | Vajalik roll, funktsioon või tarkvara | Kus tehakse | Lühiselgitus |
-|---|---|---|---|---|
-| Windows pilet 1 | IIS veebiserver | `Web Server (IIS)` | Windows Server GUI | Paigaldatakse veebiserver ja seadistatakse veebileht |
-| Windows pilet 1 | Autentimine veebilehele | IIS + AD kasutajad | IIS Manager / ADUC | Veebilehe sisselogimine seotakse Active Directory kasutajatega |
-| Windows pilet 1 | Sertifikaadid | `Active Directory Certificate Services` ehk AD CS | Windows Server GUI | Paigaldatakse Certificate Authority ja luuakse SSL sertifikaat |
-| Windows pilet 1 | HTTPS veebileht | IIS + AD CS sertifikaat | IIS Manager | Veebileht peab töötama HTTPS-iga |
-| Windows pilet 1 | DNS CNAME | DNS Server | DNS Manager | Veebilehele luuakse DNS alias ehk CNAME kirje |
-
-| Windows pilet 2 | DFS teenus | `DFS Namespaces` ja `DFS Replication` | Windows Server GUI + Core | Jagatud kaustad tehakse kättesaadavaks DFS nimeruumi kaudu |
-| Windows pilet 2 | Kaustade replikatsioon | DFS Replication | DC1 ja DC2 | Jagatud kaustad replikeeritakse kahe serveri vahel |
-| Windows pilet 2 | Failide piirang | File Server Resource Manager ehk FSRM | Windows Server GUI | Keelatakse teatud failitüübid, näiteks `.exe`, `.bat`, `.ps1` |
-| Windows pilet 2 | Kasutajapõhine mahupiirang | FSRM Quota | Windows Server GUI | Kasutajate kaustadele määratakse 1 GB piirang |
-
-| Windows pilet 3 | PowerShell skriptid | PowerShell | Windows Server | Tuleb koostada skriptid AD kontode ja DHCP info kontrollimiseks |
-| Windows pilet 3 | AD kontode kontroll | AD PowerShell moodul | DC1 | Skript peab näitama AD kontosid, sh lukustatud ja aegunud kontosid |
-| Windows pilet 3 | DHCP raport | DHCP PowerShell moodul | DHCP server | Skript peab andma ülevaate DHCP skoobist, lease’idest, reservation’idest ja vabadest IP-dest |
-
-| Windows pilet 4 | Tarkvara paigaldus domeeni klientidele | GPO Software Installation või muu keskne paigaldusviis | Group Policy Management | Tuleb paigaldada tarkvara domeeni arvutitele |
-| Windows pilet 4 | LibreOffice | LibreOffice MSI installer | Klientarvutid / GPO | Paigaldada eesti keelne LibreOffice |
-| Windows pilet 4 | PuTTY | PuTTY installer / MSI | Klientarvutid / GPO | Paigaldada PuTTY |
-| Windows pilet 4 | Google Chrome | Chrome Enterprise MSI | Klientarvutid / GPO | Paigaldada Chrome ja määrata avaleht |
-| Windows pilet 4 | Taustapilt | GPO Desktop Wallpaper | Group Policy Management | Kõigile klientidele määratakse ettevõtte taustapilt |
-| Windows pilet 4 | Logimise piirang | GPO / User Rights Assignment | Group Policy Management | Ainult AD kontod tohivad sisse logida |
-| Windows pilet 4 | Õiguste piirang | GPO | Group Policy Management | Kasutajad ei tohi muuta taustapilti |
-| Windows pilet 4 | Keelatud tegevused | GPO | Group Policy Management | Keelatakse näiteks Run, Control Panel, Task Manager, CMD käivitamine |
-
-| Windows pilet 5 | WDS teenus | `Windows Deployment Services` | Windows Server GUI | Windowsi paigaldamine üle võrgu |
-| Windows pilet 5 | Windows 10 image | Windows 10 Enterprise ISO | WDS server | Lisatakse Windows 10 paigaldusmeedia |
-| Windows pilet 5 | Windows 11 image | Windows 11 ISO | WDS server | Lisatakse Windows 11 paigaldusmeedia |
-| Windows pilet 5 | DHCP seadistus PXE jaoks | DHCP Server options | DHCP Manager | DHCP peab toetama WDS/PXE bootimist |
-| Windows pilet 5 | Testmasina paigaldus üle võrgu | WDS + PXE boot | Test VM | Testmasin käivitatakse võrgust ja sinna paigaldatakse Windows 11 |
+| Windowsi pilet | Pileti lisateenus / eriosa | Vajalik roll, teenus või tarkvara | Lühiselgitus |
+|---|---|---|---|
+| Windows pilet 1 | Veebiserver | Web Server IIS | Tuleb paigaldada ja seadistada IIS veebiserver |
+| Windows pilet 1 | Veebilehe AD autentimine | IIS + Active Directory | Veebilehele sisselogimine peab olema seotud AD kasutajatega |
+| Windows pilet 1 | Sertifikaadid | Active Directory Certificate Services | Tuleb seadistada CA ja luua sertifikaat |
+| Windows pilet 1 | HTTPS | IIS + SSL sertifikaat | Veebileht peab töötama turvaliselt HTTPS kaudu |
+| Windows pilet 1 | DNS kirje veebilehele | DNS Manager | Veebilehele tuleb luua sobiv DNS kirje või CNAME |
+| Windows pilet 2 | DFS nimeruum | DFS Namespaces | Jagatud kaustade keskseks esitamiseks ühe võrgunime kaudu |
+| Windows pilet 2 | DFS replikatsioon | DFS Replication | Jagatud kaustade sisu sünkroonimiseks serverite vahel |
+| Windows pilet 2 | Failiserveri piirangud | File Server Resource Manager | Failitüüpide ja kettakasutuse piiramiseks |
+| Windows pilet 2 | Kvoodid | FSRM Quota Management | Kasutajatele kettamahu piirangu seadmiseks |
+| Windows pilet 3 | AD kontrollskript | PowerShell + AD moodul | Skript peab kontrollima AD kontode infot |
+| Windows pilet 3 | DHCP kontrollskript | PowerShell + DHCP moodul | Skript peab näitama DHCP skoobi ja rendi infot |
+| Windows pilet 3 | Raporti koostamine | PowerShell | Tuleb koostada raport AD ja DHCP seisu kohta |
+| Windows pilet 4 | Tarkvara paigaldus klientidele | GPO / tarkvara paigaldus | Domeeni arvutitele tuleb paigaldada vajalik tarkvara |
+| Windows pilet 4 | LibreOffice | LibreOffice MSI installer | LibreOffice tuleb paigaldada eesti keeles |
+| Windows pilet 4 | PuTTY | PuTTY installer / MSI | PuTTY tuleb paigaldada klientarvutitesse |
+| Windows pilet 4 | Google Chrome | Chrome Enterprise MSI | Chrome tuleb paigaldada ja seadistada avaleht |
+| Windows pilet 4 | Taustapilt | GPO Desktop Wallpaper | Klientidele määratakse ettevõtte taustapilt |
+| Windows pilet 4 | Kasutajapiirangud | Group Policy | Keelatakse näiteks taustapildi muutmine, CMD, Run, Control Panel või Task Manager |
+| Windows pilet 5 | Windowsi paigaldus üle võrgu | Windows Deployment Services | Tuleb seadistada WDS server |
+| Windows pilet 5 | Windows 10 image | Windows 10 Enterprise ISO | WDS-i lisatakse Windows 10 paigaldusmeedia |
+| Windows pilet 5 | Windows 11 image | Windows 11 ISO | WDS-i lisatakse Windows 11 paigaldusmeedia |
+| Windows pilet 5 | PXE boot | WDS + DHCP | Testmasin peab saama käivituda võrgu kaudu |
+| Windows pilet 5 | Testpaigaldus | WDS | Windows 11 paigaldatakse testmasinasse üle võrgu |
 
 ---
 
-## Lühike ülevaade pileti kaupa
+## 3. Rollid, mida Server Managerist lisada
 
-| Pilet | Baasosa | Peamine lisateenus |
+| Roll / funktsioon | Millistes piletites vajalik | Milleks kasutatakse |
 |---|---|---|
-| Windows pilet 1 | AD DS, DNS, DHCP, GPO, OU-d, kasutajad, domeeniklient | IIS veebiserver, AD autentimine, AD CS sertifikaadid, HTTPS |
-| Windows pilet 2 | AD DS, DNS, DHCP, GPO, OU-d, kasutajad, domeeniklient | DFS Namespaces, DFS Replication, FSRM |
-| Windows pilet 3 | AD DS, DNS, DHCP, GPO, OU-d, kasutajad, domeeniklient | PowerShell skriptid AD ja DHCP info kontrollimiseks |
-| Windows pilet 4 | AD DS, DNS, DHCP, GPO, OU-d, kasutajad, domeeniklient | Tarkvara keskne paigaldus ja kasutajapiirangud GPO-ga |
-| Windows pilet 5 | AD DS, DNS, DHCP, GPO, OU-d, kasutajad, domeeniklient | WDS ehk Windows Deployment Services |
-
----
-
-## Millised rollid tuleb Server Managerist lisada?
-
-| Roll / funktsioon | Vajalik millistes piletites? | Milleks kasutatakse? |
-|---|---|---|
-| Active Directory Domain Services | Kõik Windowsi piletid | Domeeni ja domeenikontrollerite loomiseks |
-| DNS Server | Kõik Windowsi piletid | Domeeni ja teenuste nimelahenduseks |
-| DHCP Server | Kõik Windowsi piletid | Klientidele IP-aadresside jagamiseks |
-| Group Policy Management | Kõik Windowsi piletid | GPO-de loomiseks ja haldamiseks |
-| Web Server (IIS) | Windows pilet 1 | Veebilehe majutamiseks |
+| Active Directory Domain Services | Kõik piletid | Domeeni ja domeenikontrollerite loomiseks |
+| DNS Server | Kõik piletid | Nimelahenduseks domeenis |
+| DHCP Server | Kõik piletid | IP-aadresside automaatseks jagamiseks |
+| Group Policy Management | Kõik piletid | GPO-de loomiseks ja haldamiseks |
+| Web Server IIS | Windows pilet 1 | Veebiserveri loomiseks |
 | Active Directory Certificate Services | Windows pilet 1 | Sertifikaatide ja HTTPS jaoks |
-| DFS Namespaces | Windows pilet 2 | Ühtse jagatud kaustade nimeruumi loomiseks |
-| DFS Replication | Windows pilet 2 | Kaustade replikatsiooniks serverite vahel |
-| File Server Resource Manager | Windows pilet 2 | Failitüüpide ja kettamahu piiramiseks |
+| DFS Namespaces | Windows pilet 2 | DFS jagatud nimeruumi loomiseks |
+| DFS Replication | Windows pilet 2 | Kaustade sünkroonimiseks serverite vahel |
+| File Server Resource Manager | Windows pilet 2 | Kvootide ja failipiirangute seadistamiseks |
 | Windows Deployment Services | Windows pilet 5 | Windowsi paigaldamiseks üle võrgu |
 
 ---
 
-## Millist välist tarkvara võib vaja minna?
+## 4. Välised failid ja tarkvara
 
-| Tarkvara / fail | Vajalik millises piletis? | Milleks kasutatakse? |
+| Fail / tarkvara | Millises piletis vajalik | Milleks kasutatakse |
 |---|---|---|
-| `kasutajad.csv` | Kõik Windowsi piletid | Kasutajate importimiseks AD-sse PowerShelli skriptiga |
+| `kasutajad.csv` | Kõik piletid | Kasutajate importimiseks AD-sse |
 | Windows 10 Enterprise ISO | Windows pilet 5 | WDS paigaldusimage’i lisamiseks |
 | Windows 11 ISO | Windows pilet 5 | WDS paigaldusimage’i lisamiseks |
-| LibreOffice MSI | Windows pilet 4 | Tarkvara paigaldamiseks domeeni klientidele |
-| PuTTY installer / MSI | Windows pilet 4 | Tarkvara paigaldamiseks domeeni klientidele |
-| Google Chrome Enterprise MSI | Windows pilet 4 | Chrome’i keskseks paigaldamiseks |
-| Ettevõtte taustapilt | Windows pilet 4 | GPO kaudu klientidele taustapildiks |
+| LibreOffice MSI | Windows pilet 4 | LibreOffice’i keskseks paigaldamiseks |
+| PuTTY installer / MSI | Windows pilet 4 | PuTTY paigaldamiseks klientarvutitesse |
+| Chrome Enterprise MSI | Windows pilet 4 | Google Chrome’i keskseks paigaldamiseks |
+| Ettevõtte taustapilt | Windows pilet 4 | GPO kaudu töölaua taustapildiks |
 | Veebilehe failid | Windows pilet 1 | IIS veebilehe sisuks |
-| SSL sertifikaat | Windows pilet 1 | HTTPS veebilehe jaoks, luuakse AD CS kaudu |
+| SSL sertifikaat | Windows pilet 1 | HTTPS ühenduse jaoks |
 
 ---
 
-## Soovitatav tööjärjekord iga Windowsi pileti puhul
+## 5. Kiire ülevaade pileti kaupa
+
+| Pilet | Baasosa | Lisateenus |
+|---|---|---|
+| Windows pilet 1 | AD DS, DNS, DHCP, OU-d, GPO-d, kasutajad, Windows 11 domeenis | IIS, AD autentimine, AD CS, HTTPS |
+| Windows pilet 2 | AD DS, DNS, DHCP, OU-d, GPO-d, kasutajad, Windows 11 domeenis | DFS, DFS replikatsioon, FSRM |
+| Windows pilet 3 | AD DS, DNS, DHCP, OU-d, GPO-d, kasutajad, Windows 11 domeenis | PowerShell skriptid AD ja DHCP kontrolliks |
+| Windows pilet 4 | AD DS, DNS, DHCP, OU-d, GPO-d, kasutajad, Windows 11 domeenis | Tarkvara paigaldus ja kasutajapiirangud GPO-ga |
+| Windows pilet 5 | AD DS, DNS, DHCP, OU-d, GPO-d, kasutajad, Windows 11 domeenis | WDS ja Windowsi paigaldus üle võrgu |
+
+---
+
+## 6. Soovitatav tööjärjekord
 
 | Järk | Tegevus |
 |---|---|
-| 1 | Kontrolli VM-id ja võrguliidesed |
+| 1 | Kontrolli, et vajalikud VM-id töötavad |
 | 2 | Määra serveritele staatilised IP-aadressid |
-| 3 | Muuda serverite nimed: näiteks `DC1` ja `DC2` |
-| 4 | Paigalda `DC1` masinasse AD DS ja DNS roll |
-| 5 | Loo uus domeen `sinuNimi.local` |
+| 3 | Muuda serverite nimed, näiteks `DC1` ja `DC2` |
+| 4 | Paigalda `DC1` masinasse AD DS ja DNS |
+| 5 | Loo domeen `sinuNimi.local` |
 | 6 | Lisa `DC2` domeeni |
-| 7 | Paigalda `DC2` masinasse AD DS ja DNS |
-| 8 | Tee `DC2` teiseks domeenikontrolleriks |
-| 9 | Paigalda ja seadista DHCP |
-| 10 | Tee DHCP failover DC1 ja DC2 vahel |
+| 7 | Tee `DC2` teisese domeenikontrollerina tööle |
+| 8 | Paigalda ja seadista DHCP |
+| 9 | Seadista DHCP failover |
+| 10 | Lisa DHCP reservation’id klientidele |
 | 11 | Loo OU-d `Kasutajad` ja `Arvutid` |
 | 12 | Loo kasutaja `Haldur` ja lisa `Domain Admins` gruppi |
 | 13 | Impordi kasutajad CSV failist |
 | 14 | Lisa Windows 11 klient domeeni |
-| 15 | Tõsta Windows 11 arvuti OU-sse `Arvutid` |
+| 15 | Tõsta Windows 11 klient OU-sse `Arvutid` |
 | 16 | Loo vajalikud GPO-d |
-| 17 | Testi kliendist, kas GPO rakendub |
+| 17 | Kontrolli kliendis käsuga `gpupdate /force` ja `gpresult /r` |
 | 18 | Tee konkreetse pileti lisateenus |
 | 19 | Testi kogu lahendus läbi |
-| 20 | Dokumenteeri seadistused, testid ja tulemused |
+| 20 | Dokumenteeri tehtud seadistused ja kontrollid |
 
 ---
 
-## Kõige lühem spikker
+## 7. Kõige lühem meelespea
 
-| Pilet | Mida lisaks baasosale kindlasti õppida? |
+| Pilet | Õpi kindlasti juurde |
 |---|---|
 | Windows pilet 1 | IIS, HTTPS, AD CS, veebilehe autentimine |
-| Windows pilet 2 | DFS, DFS replikatsioon, FSRM |
-| Windows pilet 3 | PowerShell skriptid AD ja DHCP kohta |
-| Windows pilet 4 | GPO tarkvara paigaldus ja kasutajapiirangud |
+| Windows pilet 2 | DFS, DFS Replication, FSRM |
+| Windows pilet 3 | PowerShell, AD moodul, DHCP moodul |
+| Windows pilet 4 | GPO tarkvarapaigaldus, kasutajapiirangud |
 | Windows pilet 5 | WDS, PXE boot, Windows image’id |
+
+---
+
+## Kokkuvõte
+
+Kõikide Windowsi piletite põhituum on sama:
+
+```text
+AD DS + DNS + DHCP + OU-d + kasutajad + GPO + Windows 11 domeenis
+```
+
+Pärast baasosa lisandub igale piletile oma eriosa:
+
+```text
+Pilet 1 = IIS + AD CS + HTTPS
+Pilet 2 = DFS + FSRM
+Pilet 3 = PowerShell skriptid
+Pilet 4 = GPO tarkvarahaldus ja piirangud
+Pilet 5 = WDS ja võrgu kaudu Windowsi paigaldus
+```
