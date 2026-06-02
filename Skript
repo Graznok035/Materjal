@@ -1,67 +1,40 @@
-# Import kasutajad.csv failist AD-sse
-# CSV päised peavad olema: Nimi,Osakond
-
 Import-Module ActiveDirectory
 
-$DomainDN = "DC=ekristal,DC=local"
-$CsvPath = "C:\Users\Administrator\Desktop\kasutajad.csv"
-$BaseOU = "Kasutajad"
-$DefaultPassword = ConvertTo-SecureString "Passw0rd" -AsPlainText -Force
+$csvPath = "C:\Users\Administrator\kasutajad.csv"
+$domainDN = "DC=ekristal,DC=local"
 
-# Loo põhi-OU Kasutajad, kui seda pole
-if (-not (Get-ADOrganizationalUnit -Filter "Name -eq '$BaseOU'" -ErrorAction SilentlyContinue)) {
-    New-ADOrganizationalUnit -Name $BaseOU -Path $DomainDN
-}
-
-$BaseOUPath = "OU=$BaseOU,$DomainDN"
-
-$users = Import-Csv -Path $CsvPath -Delimiter ","
+$users = Import-Csv -Path $csvPath
 
 foreach ($user in $users) {
-    $FullName = $user.Nimi.Trim()
-    $Department = $user.Osakond.Trim()
 
-    $DepartmentOUPath = "OU=$Department,$BaseOUPath"
+    $fullName = "$($user.Eesnimi) $($user.Perenimi)"
+    $ouPath = "OU=$($user.OU),$domainDN"
 
-    # Loo osakonna OU, kui seda pole
-    if (-not (Get-ADOrganizationalUnit -LDAPFilter "(ou=$Department)" -SearchBase $BaseOUPath -ErrorAction SilentlyContinue)) {
-        New-ADOrganizationalUnit -Name $Department -Path $BaseOUPath
+    if (-not (Get-ADOrganizationalUnit -LDAPFilter "(ou=$($user.OU))" -ErrorAction SilentlyContinue)) {
+        New-ADOrganizationalUnit -Name $user.OU -Path $domainDN
     }
 
-    # Kasutajanimi kujul eesnimi.perenimi
-    $parts = $FullName.Split(" ")
-    $FirstName = $parts[0]
-    $LastName = $parts[-1]
-    $Username = ($FirstName + "." + $LastName).ToLower()
+    if (-not (Get-ADUser -Filter "SamAccountName -eq '$($user.Kasutajanimi)'" -ErrorAction SilentlyContinue)) {
 
-    # Täpitähtede asendamine kasutajanimes
-    $Username = $Username `
-        -replace "ä","a" `
-        -replace "ö","o" `
-        -replace "ü","u" `
-        -replace "õ","o"
-
-    # Kui kasutaja on juba olemas, jäta vahele
-    if (Get-ADUser -Filter "SamAccountName -eq '$Username'" -ErrorAction SilentlyContinue) {
-        Write-Host "Kasutaja $Username on juba olemas, jätan vahele."
-        continue
-    }
-
-    New-ADUser `
-        -Name $FullName `
-        -GivenName $FirstName `
-        -Surname $LastName `
-        -SamAccountName $Username `
-        -UserPrincipalName "$Username@ekristal.local" `
-        -Department $Department `
-        -Path $DepartmentOUPath `
-        -AccountPassword $DefaultPassword `
+        New-ADUser `
+        -Name $fullName `
+        -GivenName $user.Eesnimi `
+        -Surname $user.Perenimi `
+        -SamAccountName $user.Kasutajanimi `
+        -UserPrincipalName "$($user.Kasutajanimi)@ekristal.local" `
+        -Path $ouPath `
+        -AccountPassword (ConvertTo-SecureString $user.Parool -AsPlainText -Force) `
         -Enabled $true `
-        -ChangePasswordAtLogon $true
+        -ChangePasswordAtLogon $false
 
-    Write-Host "Loodud kasutaja: $Username OU-s $Department"
+        Write-Host "Loodud kasutaja: $fullName"
+    }
+    else {
+        Write-Host "Kasutaja juba olemas: $($user.Kasutajanimi)"
+    }
 }
-
-powepPowershel admin
-
-import-kasutajad.ps1
+Käivita skript:
+Set-ExecutionPolicy RemoteSigned -Force
+C:\Temp\import-kasutajad.ps1
+Kontroll:
+Get-ADUser -Filter * -SearchBase "OU=Kasutajad,DC=sinunimi,DC=local"
