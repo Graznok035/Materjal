@@ -1,0 +1,203 @@
+Jah, selle pildi järgi on probleem see, et DHCP konsoolis on “New Reservation…” hall / mitteaktiivne. See juhtub tavaliselt siis, kui valitud koht ei luba uut reserveeringut lisada või DHCP scope/server ei ole õigesti aktiivne.
+
+Pane dokumentatsiooni alla näiteks nii:
+
+## Hetke probleem: DHCP reserveeringut ei saa lisada
+
+### Probleemi kirjeldus
+
+DHCP konsoolis ei saa lisada uut reserveeringut, sest valik **New Reservation...** on hall ja seda ei saa vajutada.
+
+Pildil on näha, et olen DHCP konsoolis liikunud kohta:
+
+```text
+IPv4 > Scope [10.0.53.0] > Reservations
+
+Aga paremklõpsuga avanevas menüüs on valik:
+
+New Reservation...
+
+mitteaktiivne.
+
+Võimalikud põhjused ja lahendused
+1. DHCP scope ei ole aktiivne
+
+Kui DHCP scope ei ole aktiveeritud, ei pruugi uusi reserveeringuid lisada saada.
+
+Kontroll PowerShellis:
+
+Get-DhcpServerv4Scope
+
+Kui scope on olekus Inactive, aktiveeri see:
+
+Set-DhcpServerv4Scope -ScopeId 10.0.53.0 -State Active
+
+Seejärel värskenda DHCP konsooli:
+
+Action > Refresh
+
+Või sulge DHCP konsool ja ava uuesti.
+
+2. DHCP server ei ole autoriseeritud
+
+Domeenis peab DHCP server olema autoriseeritud. Kui server ei ole autoriseeritud, ei tööta DHCP korrektselt.
+
+Kontroll:
+
+Get-DhcpServerInDC
+
+Kui sinu DHCP serverit nimekirjas ei ole, autoriseeri see:
+
+Add-DhcpServerInDC -DnsName "dc1.ekristal.local" -IPAddress 10.0.53.2
+
+IP-aadress tuleb asendada sinu DHCP serveri tegeliku IP-aadressiga.
+
+Pärast seda taaskäivita DHCP teenus:
+
+Restart-Service DHCPServer
+3. DHCP konsool ei ole avatud administraatori õigustes
+
+Kui DHCP konsool ei ole avatud piisavate õigustega, võivad osad tegevused olla hallid.
+
+Lahendus:
+
+Sulge DHCP konsool.
+Ava Start-menüü.
+Otsi DHCP.
+Tee paremklõps.
+Vali Run as administrator.
+
+Seejärel proovi uuesti:
+
+IPv4 > Scope > Reservations > New Reservation
+4. Valitud on vale koht DHCP puus
+
+Reserveeringut saab lisada ainult konkreetse scope’i Reservations kausta alla.
+
+Õige asukoht on:
+
+DHCP
+└── dc1.ekristal.local
+    └── IPv4
+        └── Scope [10.0.53.0]
+            └── Reservations
+
+Seejärel tee paremklõps just Reservations peal, mitte scope’i üldnimel ega serveri nimel.
+
+5. DHCP scope võib olla vigaselt loodud
+
+Kui scope on loodud valesti või pool puudub, võib graafiline haldus käituda imelikult.
+
+Kontrolli scope’i infot:
+
+Get-DhcpServerv4Scope -ScopeId 10.0.53.0
+
+Kontrolli aadressivahemikku:
+
+Get-DhcpServerv4Scope | Format-Table ScopeId, StartRange, EndRange, SubnetMask, State
+
+Näide oodatavast tulemusest:
+
+ScopeId     StartRange   EndRange     SubnetMask      State
+-------     ----------   --------     ----------      -----
+10.0.53.0   10.0.53.100  10.0.53.200  255.255.255.0   Active
+
+Kui scope on valesti loodud, on lihtsam see kustutada ja uuesti luua.
+
+6. DHCP MMC konsooli ajutine tõrge
+
+Windows Serveri DHCP graafiline konsool võib vahel mitte värskendada õigesti.
+
+Lahendus:
+
+Restart-Service DHCPServer
+
+Seejärel ava DHCP konsool uuesti.
+
+Võid teha ka konsooli värskenduse:
+
+Action > Refresh
+Alternatiiv: lisa reserveering PowerShelliga
+
+Kui graafiline nupp ei tööta, saab reserveeringu lisada PowerShelliga.
+
+Näide:
+
+Add-DhcpServerv4Reservation `
+    -ScopeId 10.0.53.0 `
+    -IPAddress 10.0.53.50 `
+    -ClientId "00-11-22-33-44-55" `
+    -Description "Reserveering testkliendile"
+
+Selgitus:
+
+Parameeter	Selgitus
+-ScopeId 10.0.53.0	DHCP scope, mille alla reserveering luuakse
+-IPAddress 10.0.53.50	IP-aadress, mida soovitakse kliendile alati anda
+-ClientId	Kliendi MAC-aadress
+-Description	Kirjeldus, mille järgi reserveeringu hiljem ära tunneb
+
+Näide päris kujul:
+
+Add-DhcpServerv4Reservation `
+    -ScopeId 10.0.53.0 `
+    -IPAddress 10.0.53.10 `
+    -ClientId "08-00-27-AA-BB-CC" `
+    -Description "Printer või server"
+
+MAC-aadress tuleb võtta seadme võrgukaardilt.
+
+Windows kliendis saab MAC-aadressi kontrollida käsuga:
+
+ipconfig /all
+
+Otsi rida:
+
+Physical Address
+Kontroll pärast reserveeringu loomist
+
+Kontrolli reserveeringuid PowerShellis:
+
+Get-DhcpServerv4Reservation -ScopeId 10.0.53.0
+
+Kontrolli DHCP konsoolis:
+
+IPv4 > Scope [10.0.53.0] > Reservations
+
+Kui reserveering on edukalt loodud, peab see ilmuma Reservations alla.
+
+Kõige tõenäolisem lahendus minu olukorras
+
+Kõigepealt kontrollisin, kas scope on aktiivne:
+
+Get-DhcpServerv4Scope
+
+Seejärel aktiveerisin scope’i vajadusel:
+
+Set-DhcpServerv4Scope -ScopeId 10.0.53.0 -State Active
+
+Kui DHCP konsoolis nupp endiselt ei töötanud, lisasin reserveeringu PowerShelliga:
+
+Add-DhcpServerv4Reservation `
+    -ScopeId 10.0.53.0 `
+    -IPAddress 10.0.53.50 `
+    -ClientId "00-11-22-33-44-55" `
+    -Description "DHCP reserveering"
+
+Pärast seda kontrollisin tulemust:
+
+Get-DhcpServerv4Reservation -ScopeId 10.0.53.0
+Kokkuvõte
+
+Probleem, kus DHCP konsoolis New Reservation... nupp on hall, võib tekkida siis, kui DHCP scope ei ole aktiivne, DHCP server ei ole autoriseeritud, konsool ei ole avatud administraatori õigustes või DHCP MMC konsool ei ole õigesti värskendunud.
+
+Lahendusena tuleb kontrollida DHCP scope’i olekut, DHCP serveri autoriseerimist ja vajadusel lisada reserveering PowerShelli kaudu.
+
+
+Praktiliselt tee esimesena need kaks käsku:
+
+```powershell
+Get-DhcpServerv4Scope
+Get-DhcpServerInDC
+
+Kui scope on aktiivne ja server on autoriseeritud, aga GUI nupp on ikka hall, lisa reserveering otse PowerShelliga.
