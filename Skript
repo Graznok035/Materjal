@@ -1,40 +1,341 @@
 Import-Module ActiveDirectory
 
+# CSV faili asukoht
 $csvPath = "C:\Users\Administrator\kasutajad.csv"
+
+# Domeeni DN
 $domainDN = "DC=ekristal,DC=local"
 
+# Põhi-OU, mille alla osakonnad luuakse
+$rootOU = "Kasutajad"
+$rootOUPath = "OU=$rootOU,$domainDN"
+
+# Vaikimisi parool kõigile loodavatele kasutajatele
+$defaultPassword = "Passw0rd"
+
+# Kontrollime, kas CSV fail on olemas
+if (-not (Test-Path $csvPath)) {
+    Write-Host "VIGA: CSV faili ei leitud asukohast $csvPath" -ForegroundColor Red
+    exit
+}
+
+# Kontrollime, kas põhi-OU Kasutajad on olemas
+$existingRootOU = Get-ADOrganizationalUnit `
+    -Filter { Name -eq $rootOU } `
+    -SearchBase $domainDN `
+    -SearchScope OneLevel `
+    -ErrorAction SilentlyContinue
+
+if (-not $existingRootOU) {
+    New-ADOrganizationalUnit `
+        -Name $rootOU `
+        -Path $domainDN
+
+    Write-Host "Loodud põhi-OU: $rootOU" -ForegroundColor Green
+}
+else {
+    Write-Host "Põhi-OU on juba olemas: $rootOU" -ForegroundColor Yellow
+}
+
+# Impordime kasutajad CSV failist
 $users = Import-Csv -Path $csvPath
 
 foreach ($user in $users) {
 
-    $fullName = "$($user.Eesnimi) $($user.Perenimi)"
-    $ouPath = "OU=$($user.OU),$domainDN"
+    # Loeme CSV-st täisnime ja osakonna
+    $fullName = $user.Nimi.Trim()
+    $department = $user.Osakond.Trim()
 
-    if (-not (Get-ADOrganizationalUnit -LDAPFilter "(ou=$($user.OU))" -ErrorAction SilentlyContinue)) {
-        New-ADOrganizationalUnit -Name $user.OU -Path $domainDN
+    # Kontrollime, et nimi ja osakond ei oleks tühjad
+    if ([string]::IsNullOrWhiteSpace($fullName) -or [string]::IsNullOrWhiteSpace($department)) {
+        Write-Host "Vigane rida CSV failis, jäeti vahele." -ForegroundColor Red
+        continue
     }
 
-    if (-not (Get-ADUser -Filter "SamAccountName -eq '$($user.Kasutajanimi)'" -ErrorAction SilentlyContinue)) {
+    # Osakonna OU asukoht
+    $departmentOUPath = "OU=$department,$rootOUPath"
 
-        New-ADUser `
-        -Name $fullName `
-        -GivenName $user.Eesnimi `
-        -Surname $user.Perenimi `
-        -SamAccountName $user.Kasutajanimi `
-        -UserPrincipalName "$($user.Kasutajanimi)@ekristal.local" `
-        -Path $ouPath `
-        -AccountPassword (ConvertTo-SecureString $user.Parool -AsPlainText -Force) `
-        -Enabled $true `
-        -ChangePasswordAtLogon $false
+    # Kontrollime, kas osakonna OU on juba olemas
+    $existingDepartmentOU = Get-ADOrganizationalUnit `
+        -Filter { Name -eq $department } `
+        -SearchBase $rootOUPath `
+        -SearchScope OneLevel `
+        -ErrorAction SilentlyContinue
 
-        Write-Host "Loodud kasutaja: $fullName"
+    if (-not $existingDepartmentOU) {
+        New-ADOrganizationalUnit `
+            -Name $department `
+            -Path $rootOUPath
+
+        Write-Host "Loodud osakonna OU: $department" -ForegroundColor Green
     }
     else {
-        Write-Host "Kasutaja juba olemas: $($user.Kasutajanimi)"
+        Write-Host "Osakonna OU on juba olemas: $department" -ForegroundColor Yellow
+    }
+
+    # Jagame täisnime osadeks
+    $nameParts = $fullName.Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)
+
+    # Eesnimeks võtame esimese nimeosa
+    $firstName = $nameParts[0]
+
+    # Perenimeks võtame viimase nimeosa
+    $lastName = $nameParts[-1]
+
+    # Kasutajanimi kujul eesnimi.perenimi
+    $username = "$firstName.$lastName".ToLower()
+
+    # Eemaldame kasutajanimest Eesti täpitähed
+    $username = $username `
+        -replace "ä", "a" `
+        -replace "ö", "o" `
+        -replace "ü", "u" `
+        -replace "õ", "o"
+
+    # Kontrollime, kas kasutaja on juba olemas
+    $existingUser = Get-ADUser `
+        -Filter { SamAccountName -eq $username } `
+        -ErrorAction SilentlyContinue
+
+    if (-not $existingUser) {
+
+        New-ADUser `
+            -Name $fullName `
+            -GivenName $firstName `
+            -Surname $lastName `
+            -SamAccountName $username `
+            -UserPrincipalName "$username@ekristal.local" `
+            -Path $departmentOUPath `
+            -AccountPassword (ConvertTo-SecureString $defaultPassword -AsPlainText -Force) `
+            -Enabled $true `
+            -ChangePasswordAtLogon $false
+
+        Write-Host "Loodud kasutaja: $fullName ($username) OU-s $department" -ForegroundColor Green
+    }
+    else {
+        Write-Host "Kasutaja on juba olemas: $username" -ForegroundColor Yellow
     }
 }
-Käivita skript:
+
+
+
+
+
+Kui CSV fail kasutab semikoolonit
+
+Kui CSV fail on kujul:
+
+Nimi;Osakond
+Aivo Teder;Müük
+Andres Karl Kukk;Personal
+
+siis tuleb muuta skriptis see rida:
+
+$users = Import-Csv -Path $csvPath
+
+selliseks:
+
+$users = Import-Csv -Path $csvPath -Delimiter ";"
+
+Kui CSV fail on komaga eraldatud, siis seda muudatust ei ole vaja teha.
+
+Skripti käivitamine
+
+Ava PowerShell administraatori õigustes.
+
+Seejärel luba skriptide käivitamine:
+
 Set-ExecutionPolicy RemoteSigned -Force
+
+Käivita skript:
+
 C:\Temp\import-kasutajad.ps1
-Kontroll:
-Get-ADUser -Filter * -SearchBase "OU=Kasutajad,DC=ekristal,DC=local"
+
+Kui skript on mõnes teises kaustas, kasuta vastavat asukohta, näiteks:
+
+C:\Users\Administrator\import-kasutajad.ps1
+Kontrollimine
+1. Kontrolli, kas põhi-OU Kasutajad on olemas
+Get-ADOrganizationalUnit `
+    -Filter * `
+    -SearchBase "DC=ekristal,DC=local" `
+    -SearchScope OneLevel |
+Select-Object Name, DistinguishedName
+
+Oodatav tulemus:
+
+Kasutajad
+2. Kontrolli, kas osakondade OU-d loodi Kasutajad OU alla
+Get-ADOrganizationalUnit `
+    -Filter * `
+    -SearchBase "OU=Kasutajad,DC=ekristal,DC=local" |
+Select-Object Name, DistinguishedName
+
+Oodatav tulemus on näiteks:
+
+Müük
+Personal
+Raamatupidamine
+Toimetajad
+IT
+Juhtkond
+Haldus
+3. Kontrolli, kas kasutajad loodi
+Get-ADUser `
+    -Filter * `
+    -SearchBase "OU=Kasutajad,DC=ekristal,DC=local" |
+Select-Object Name, SamAccountName, DistinguishedName
+4. Kontrolli ühe osakonna kasutajaid
+
+Näiteks Müük osakonna kontroll:
+
+Get-ADUser `
+    -Filter * `
+    -SearchBase "OU=Müük,OU=Kasutajad,DC=ekristal,DC=local" |
+Select-Object Name, SamAccountName
+Näide loodavast kasutajanimest
+CSV nimi	Loodav kasutajanimi
+Aivo Teder	aivo.teder
+Andres Karl Kukk	andres.kukk
+Anne-Mai Koppel	anne-mai.koppel
+Hannes Rõõm	hannes.room
+Heidi Katrin Pärn	heidi.parn
+
+Kui inimesel on mitu eesnime, kasutab skript kasutajanime loomisel esimest ja viimast nimeosa.
+
+Näiteks:
+
+Andres Karl Kukk
+
+sellest saab:
+
+andres.kukk
+Mida skript teeb?
+Skripti osa	Selgitus
+Import-Module ActiveDirectory	Laeb Active Directory käsud PowerShelli
+$csvPath	Määrab CSV faili asukoha
+$domainDN	Määrab domeeni LDAP kuju
+$rootOU = "Kasutajad"	Määrab põhi-OU nime
+Test-Path $csvPath	Kontrollib, kas CSV fail on olemas
+Get-ADOrganizationalUnit	Kontrollib, kas OU on olemas
+New-ADOrganizationalUnit	Loob OU, kui seda ei ole
+Import-Csv	Loeb kasutajad CSV failist
+$user.Nimi.Trim()	Loeb kasutaja täisnime
+$user.Osakond.Trim()	Loeb kasutaja osakonna
+$fullName.Split()	Jagab täisnime osadeks
+$firstName = $nameParts[0]	Võtab eesnimeks esimese nimeosa
+$lastName = $nameParts[-1]	Võtab perenimeks viimase nimeosa
+$username = "$firstName.$lastName".ToLower()	Loob kasutajanime
+Get-ADUser	Kontrollib, kas kasutaja on juba olemas
+New-ADUser	Loob uue AD kasutaja
+ConvertTo-SecureString	Muudab parooli AD jaoks sobivasse vormi
+-Enabled $true	Lubab kasutajakonto kohe sisse
+-ChangePasswordAtLogon $false	Kasutaja ei pea esimesel sisselogimisel parooli muutma
+Miks algne skript ei sobinud?
+
+Algses skriptis oli näiteks selline rida:
+
+$ouPath = "OU=$($user.OU),$domainDN"
+
+See eeldab, et CSV failis on veerg nimega OU.
+
+Tegelikus CSV failis sellist veergu ei olnud. Seal oli hoopis Osakond.
+
+Samuti oleks algne skript loonud OU-d otse domeeni alla:
+
+OU=Müük,DC=ekristal,DC=local
+
+Ülesande järgi peab osakond olema aga OU=Kasutajad all:
+
+OU=Müük,OU=Kasutajad,DC=ekristal,DC=local
+
+Seetõttu tuli skript muuta nii, et osakonna OU tee oleks:
+
+$departmentOUPath = "OU=$department,OU=Kasutajad,DC=ekristal,DC=local"
+Võimalikud vead ja lahendused
+Viga: The search filter cannot be recognized
+
+Põhjus:
+
+CSV veerunimed ei vasta skriptile;
+näiteks skript ootab $user.OU, aga CSV-s on Osakond;
+või skript ootab $user.Kasutajanimi, aga CSV-s seda veergu ei ole.
+
+Lahendus:
+
+kasutada parandatud skripti;
+kontrollida CSV esimese rea veerunimesid.
+Viga: Cannot validate argument on parameter Path
+
+Põhjus:
+
+OU tee on valesti koostatud;
+põhi-OU Kasutajad puudub;
+osakonna nimi on tühi.
+
+Lahendus:
+
+kontrollida, et CSV failis oleks igal real osakond;
+käivitada parandatud skript, mis loob enne OU=Kasutajad.
+Viga: The password does not meet the length, complexity, or history requirement
+
+Põhjus:
+
+domeeni paroolipoliitika ei luba määratud parooli.
+
+Lahendus:
+
+kasutada keerukamat parooli, näiteks:
+$defaultPassword = "Passw0rd!"
+Viga: Access is denied
+
+Põhjus:
+
+PowerShell ei ole avatud administraatori õigustes;
+kasutajal pole õigust AD-s kasutajaid või OU-sid luua.
+
+Lahendus:
+
+ava PowerShell valikuga Run as Administrator;
+kasuta domeeni administraatori õigustega kasutajat.
+Lõpptulemus
+
+Pärast skripti edukat käivitamist on Active Directorys loodud järgmine struktuur:
+
+OU=Kasutajad,DC=ekristal,DC=local
+
+Selle alla on loodud osakonnad:
+
+OU=Müük,OU=Kasutajad,DC=ekristal,DC=local
+OU=Personal,OU=Kasutajad,DC=ekristal,DC=local
+OU=Raamatupidamine,OU=Kasutajad,DC=ekristal,DC=local
+OU=Toimetajad,OU=Kasutajad,DC=ekristal,DC=local
+OU=IT,OU=Kasutajad,DC=ekristal,DC=local
+OU=Juhtkond,OU=Kasutajad,DC=ekristal,DC=local
+OU=Haldus,OU=Kasutajad,DC=ekristal,DC=local
+
+Iga kasutaja on loodud oma osakonna OU sisse.
+
+Kõigi kasutajate vaikimisi parool on:
+
+Passw0rd
+
+Kasutajanimed on loodud kujul:
+
+eesnimi.perenimi
+
+Näiteks:
+
+aivo.teder
+andres.kukk
+hannes.room
+heidi.parn
+Kokkuvõte
+
+Selle skriptiga imporditakse AD kasutajad failist kasutajad.csv.
+
+Skript loob esmalt põhi-OU Kasutajad, seejärel loob selle alla osakondade OU-d ning lõpuks loob kasutajad vastavatesse osakondadesse.
+
+Parandatud skript arvestab tegeliku CSV failiga, kus on veerud Nimi ja Osakond.
+
+Skript väldib topeltkasutajate loomist ning kontrollib enne loomist, kas vastav OU või kasutaja on juba Active Directorys olemas.
