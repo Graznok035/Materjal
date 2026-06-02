@@ -37,4 +37,4 @@ Käivita skript:
 Set-ExecutionPolicy RemoteSigned -Force
 C:\Temp\import-kasutajad.ps1
 Kontroll:
-Get-ADUser -Filter * -SearchBase "OU=Kasutajad,DC=sinunimi,DC=local"
+Get-ADUser -Filter * -SearchBase "OU=Kasutajad,DC=ekristal,DC=local"
