@@ -369,8 +369,13 @@ https://siseportaal.sinunimi.local
 ## Edge ADMX mallide lisamine
 
 Laadi alla Microsoft Edge Policy Templates.
+otsene allalaadimise link: https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/67fbb399-543d-49d5-b2ad-69f11af0d5e5/MicrosoftEdgePolicyTemplates.cab
+või leheküljelt: https://www.microsoft.com/et-ee/edge/business/download?form=MA13FJ
 
 Kopeeri ADMX fail:
+
+~\MicrosoftEdgePolicyTemplates\windows\admx\msedge.admx
+lehekülje allotsas
 
 ```text
 msedge.admx
@@ -383,6 +388,8 @@ C:\Windows\PolicyDefinitions
 ```
 
 Kopeeri ADML fail, näiteks inglise keele puhul:
+
+~\MicrosoftEdgePolicyTemplates\windows\adm\en-US\msedge.adml
 
 ```text
 msedge.adml
@@ -421,6 +428,7 @@ User Configuration
 └── Policies
     └── Administrative Templates
         └── Microsoft Edge
+            └── Startup, home page and new tab page
 ```
 
 Seadista:
@@ -450,6 +458,8 @@ Kui olemas:
 ```text
 Configure whether users can set homepage: Disabled / või lukustatud seadistus vastavalt mallile
 ```
+
+Martin: ei leidnud. võib olla kuskil sügavamal...
 
 ---
 
